@@ -1,0 +1,280 @@
+import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { ProductService } from '../services/product.service.ts';
+import { logger } from '../utils/logger.js';
+import { config } from '../config/index.js';
+import { handleServiceError } from '../utils/error-handler.ts';
+
+// Input validation schemas
+const productCreateSchema = z.object({
+  name: z.string().min(3).max(100),
+  description: z.string().optional(),
+  price: z.number().positive().or(z.string().regex(/^\d+(\.\d{1,2})?$/).transform(val => parseFloat(val))),
+  sku: z.string().min(3).max(50),
+  stock: z.number().int().nonnegative().default(0),
+  categoryIds: z.array(z.string().uuid()).optional(),
+});
+
+const productUpdateSchema = productCreateSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
+
+const productQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().default(20).max(100),
+  search: z.string().optional(),
+  categoryId: z.string().uuid().optional(),
+  minPrice: z.coerce.number().optional(),
+  maxPrice: z.coerce.number().optional(),
+  isActive: z.enum(['true', 'false']).transform(val => val === 'true').optional(),
+  sortBy: z.enum(['name', 'price', 'createdAt']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+/**
+ * Product controller - Optimized for Cloud Run
+ */
+export class ProductController {
+  private service: ProductService;
+
+  constructor() {
+    // Initialize service with request-scoped instance
+    this.service = new ProductService();
+  }
+
+  /**
+   * Get all products with pagination and filtering
+   */
+  public getProducts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const requestId = req.id;
+    
+    try {
+      // Validate and parse query parameters
+      const validatedQuery = productQuerySchema.safeParse(req.query);
+      
+      if (!validatedQuery.success) {
+        logger.warn({ req, errors: validatedQuery.error.format() }, 'Invalid query parameters');
+        res.status(400).json({
+          success: false,
+          message: 'Invalid query parameters',
+          errors: validatedQuery.error.format(),
+        });
+        return;
+      }
+      
+      const query = validatedQuery.data;
+      
+      // Log with structured data for Cloud Logging
+      logger.info({
+        req,
+        query,
+        service: config().server.isCloudRun ? config().gcp?.service : 'local',
+      }, 'Fetching products');
+      
+      // Set timeout for long-running operations with AbortController
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, config().server.requestTimeout);
+      
+      try {
+        // Call service with timeout signal
+        const result = await this.service.findProducts(
+          query,
+          { signal: abortController.signal }
+        );
+        
+        // Clear timeout if successful
+        clearTimeout(timeoutId);
+        
+        res.json({
+          success: true,
+          ...result,
+          // Add response metadata for monitoring
+          meta: {
+            requestId,
+            timestamp: new Date().toISOString(),
+            service: config().gcp?.service,
+            revision: config().gcp?.revision,
+          }
+        });
+      } catch (err) {
+        // Clear timeout if there was an error
+        clearTimeout(timeoutId);
+        
+        // Handle AbortController timeout
+        if (err.name === 'AbortError') {
+          logger.error({ req, err }, 'Request timed out');
+          res.status(408).json({ 
+            success: false, 
+            message: 'Request timed out', 
+            requestId 
+          });
+          return;
+        }
+        
+        throw err; // Re-throw for the outer catch block
+      }
+    } catch (err) {
+      handleServiceError(err, req, res, next);
+    } finally {
+      // Ensure database connection is closed even if there's an error
+      await this.service.disconnect();
+    }
+  };
+
+  /**
+   * Get product by ID
+   */
+  public getProductById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { id } = req.params;
+    const requestId = req.id;
+    
+    try {
+      logger.info({ req, productId: id }, 'Fetching product by ID');
+      
+      const product = await this.service.findProductById(id);
+      
+      if (!product) {
+        logger.info({ req, productId: id }, 'Product not found');
+        res.status(404).json({ 
+          success: false, 
+          message: 'Product not found', 
+          requestId 
+        });
+        return;
+      }
+      
+      res.json({
+        success: true,
+        data: product,
+        meta: { requestId }
+      });
+    } catch (err) {
+      handleServiceError(err, req, res, next);
+    } finally {
+      await this.service.disconnect();
+    }
+  };
+
+  /**
+   * Create a new product
+   */
+  public createProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const requestId = req.id;
+    
+    try {
+      // Validate request body
+      const validatedData = productCreateSchema.safeParse(req.body);
+      
+      if (!validatedData.success) {
+        logger.warn({ req, errors: validatedData.error.format() }, 'Invalid product data');
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validatedData.error.format(),
+          requestId
+        });
+        return;
+      }
+      
+      logger.info({ req, productData: { ...validatedData.data, description: undefined } }, 'Creating product');
+      
+      const product = await this.service.createProduct(validatedData.data);
+      
+      // Set appropriate status code and location header
+      res.status(201)
+        .location(`${config().server.apiPrefix}/products/${product.id}`)
+        .json({
+          success: true,
+          data: product,
+          meta: { requestId }
+        });
+    } catch (err) {
+      handleServiceError(err, req, res, next);
+    } finally {
+      await this.service.disconnect();
+    }
+  };
+
+  /**
+   * Update an existing product
+   */
+  public updateProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { id } = req.params;
+    const requestId = req.id;
+    
+    try {
+      // Validate request body
+      const validatedData = productUpdateSchema.safeParse(req.body);
+      
+      if (!validatedData.success) {
+        logger.warn({ req, errors: validatedData.error.format() }, 'Invalid product update data');
+        res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: validatedData.error.format(),
+          requestId
+        });
+        return;
+      }
+      
+      logger.info({ req, productId: id, updateData: validatedData.data }, 'Updating product');
+      
+      const updatedProduct = await this.service.updateProduct(id, validatedData.data);
+      
+      if (!updatedProduct) {
+        logger.info({ req, productId: id }, 'Product not found for update');
+        res.status(404).json({ 
+          success: false, 
+          message: 'Product not found', 
+          requestId 
+        });
+        return;
+      }
+      
+      res.json({
+        success: true,
+        data: updatedProduct,
+        meta: { requestId }
+      });
+    } catch (err) {
+      handleServiceError(err, req, res, next);
+    } finally {
+      await this.service.disconnect();
+    }
+  };
+
+  /**
+   * Delete a product
+   */
+  public deleteProduct = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { id } = req.params;
+    const requestId = req.id;
+    
+    try {
+      logger.info({ req, productId: id }, 'Deleting product');
+      
+      const deleted = await this.service.deleteProduct(id);
+      
+      if (!deleted) {
+        logger.info({ req, productId: id }, 'Product not found for deletion');
+        res.status(404).json({ 
+          success: false, 
+          message: 'Product not found', 
+          requestId 
+        });
+        return;
+      }
+      
+      // Return 204 No Content for successful deletion
+      res.status(204).end();
+    } catch (err) {
+      handleServiceError(err, req, res, next);
+    } finally {
+      await this.service.disconnect();
+    }
+  };
+}
+
+export default new ProductController();

@@ -1,0 +1,15 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Run lint-staged on staged files (much faster)
+npx lint-staged
+
+# Decide on testing strategy:
+# Option A: Keep running all tests (safest, potentially slow)
+npm run test
+
+# Option B: Run only related tests (faster, needs setup/config)
+# npm run test --related # Check Vitest docs for 'related' functionality
+
+# Option C: Skip tests here, rely on CI (fastest pre-commit, relies on CI discipline)
+# (Remove npm run test line)

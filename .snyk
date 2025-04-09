@@ -1,0 +1,49 @@
+# Snyk policy file (.snyk)
+# Use this file to customize 'snyk test' behavior by ignoring specific vulnerabilities or paths.
+# For full documentation, see: https://docs.snyk.io/features/snyk-cli/commands/test#the-.snyk-file
+# Remember to connect your project for continuous monitoring: https://snyk.io/
+
+# Specifies the policy file format version.
+# Snyk may update this automatically when you run 'snyk monitor'.
+version: v1.17.0 # Using a recent valid version.
+
+# Define vulnerabilities or paths to ignore during 'snyk test'.
+# Ignores defined here apply ONLY to 'snyk test' and not to policies enforced by 'snyk monitor' unless synced.
+ignores:
+  # === Path Ignores ===
+  # Ignore paths that are typically not part of the production deployment
+  # or contain non-production code where vulnerabilities might be less critical.
+  # Adjust these paths based on your actual project structure.
+  - 'test/**'             # Ignore files within the main test directory
+  - 'src/tests/**'        # Ignore tests co-located within src (if any)
+  - 'dist/**'             # Ignore build output directory
+  - 'coverage/**'         # Ignore code coverage reports
+  - 'docs/**'             # Ignore generated documentation files
+  # - 'scripts/**'        # Optional: Ignore helper scripts if they aren't security critical
+  # - 'node_modules/**'   # Snyk generally handles node_modules correctly, but can be explicit if needed.
+
+  # === Vulnerability Ignores ===
+  # Use this section to ignore specific vulnerability IDs found by 'snyk test'.
+  # --> IMPORTANT: Always provide a clear 'reason' and an 'expires' date for ignored vulnerabilities! <--
+
+  # --- Example: Ignoring a Specific Vulnerability ID Everywhere ---
+  # Find the ID (e.g., SNYK-JS-LODASH-123456) from 'snyk test' output or the Snyk UI.
+  # Uncomment and replace the placeholder ID, reason, and expiry date.
+  #
+  # 'SNYK-JS-EXAMPLE-VULNID-12345': # Replace with the actual Vulnerability ID
+  #   - '*': # The '*' applies the ignore to all paths where this vulnerability occurs.
+  #       reason: 'REQUIRED: Document why this is safe to ignore in this project (e.g., Code path not reachable, Mitigating controls in place, Accepted risk for internal tool, Temporary ignore until fix release).'
+  #       # Set an expiry date (YYYY-MM-DD) to ensure this ignore rule is reviewed periodically.
+  #       expires: '2025-10-31' # REQUIRED: Date format YYYY-MM-DD
+
+  # --- Example: Ignoring a Vulnerability in a Specific Dependency Path ---
+  # Useful if a vulnerability only affects a development dependency or a specific usage path.
+  # Get the path from the 'snyk test' output.
+  #
+  # 'SNYK-PYTHON-REQUESTS-56789': # Replace with actual ID
+  #   - 'my-main-package > requests@2.25.1':
+  #       reason: 'This specific path is only used in non-sensitive internal reporting.'
+  #       expires: '2025-09-30'
+  #   - 'my-other-package > sub-dependency@1.0.0 > requests@2.25.0':
+  #       reason: 'Different usage path, also deemed low risk.'
+  #       expires: '2025-09-30'

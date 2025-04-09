@@ -1,0 +1,447 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  # Improvement: Use the exact pinned version if possible (e.g., '22.14.0')
+  NODE_VERSION: '22.x'
+  # Improvement: Define region and ensure it's set (via env or secrets)
+  GCP_REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  # Improvement: Define Artifact Registry Path Base using GCP_REGION
+  GAR_REGISTRY_PATH: ${{ secrets.GCP_REGION || 'us-central1' }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}
+
+# Cancel previous runs of the same workflow on the same branch/ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm' # Use built-in caching
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npm run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine # User updated image
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+      - name: Reset and Setup Test Database
+        # Improvement: Use migrate reset for a clean, non-interactive setup in CI
+        run: npx prisma migrate reset --force --skip-generate
+      - name: Run tests with coverage
+        run: npm run test:coverage
+      - name: Check coverage thresholds
+        id: coverage_check
+        run: |
+          # Improvement: Simplified coverage check using node and awk for comparison
+          COVERAGE=$(node -e "try { console.log(require('./coverage/coverage-summary.json').total.lines.pct) } catch (e) { console.log('0'); }")
+          THRESHOLD=80
+          echo "Coverage: $COVERAGE%"
+          # Use awk for floating point comparison
+          if awk -v coverage="$COVERAGE" -v threshold="$THRESHOLD" 'BEGIN { exit !(coverage >= threshold) }'; then
+            echo "Test coverage ($COVERAGE%) meets threshold ($THRESHOLD%)."
+          else
+            echo "::error::Test coverage ($COVERAGE%) is below threshold ($THRESHOLD%)"
+            exit 1
+          fi
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # directory: ./coverage/ # Usually not needed for v4+ unless non-standard location
+          fail_ci_if_error: false # Don't fail CI if upload fails
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci # Need deps for accurate audit/scan
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master # Consider pinning to specific version e.g., @0.7.0
+        continue-on-error: true # Review findings without blocking pipeline
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+      - name: Scan for secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed for reporting issues
+
+  build:
+    name: Build Application & Prepare Artifacts
+    runs-on: ubuntu-latest
+    needs: [validate, test, security]
+    if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    outputs:
+      # Outputs now derived correctly using Artifact Registry path
+      app_version: ${{ steps.set_version.outputs.version }}
+      image_tags: ${{ steps.set_version.outputs.image_tags }}
+      primary_image: ${{ steps.set_version.outputs.primary_image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for git describe
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run prisma:generate # Needed if build requires it OR for artifact upload
+
+      - name: Set Version and Docker Tags
+        id: set_version
+        run: |
+          # Improvement: Use Artifact Registry path defined in env
+          REGISTRY="${{ env.GAR_REGISTRY_PATH }}"
+          REPOSITORY="${{ github.event.repository.name }}"
+          IMAGE_NAME="${REGISTRY}/${REPOSITORY}"
+
+          # Determine version based on git ref
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            TAG_VERSION=${VERSION} # Use clean version for docker tag
+            # Tag production releases with version and latest
+            TAGS="${IMAGE_NAME}:${TAG_VERSION},${IMAGE_NAME}:latest"
+            PRIMARY_IMAGE="${IMAGE_NAME}:${TAG_VERSION}"
+          else
+            BRANCH=$(echo ${{ github.ref_name }} | sed 's/[^a-zA-Z0-9]/-/g') # Sanitize branch name
+            SHA=$(git rev-parse --short HEAD)
+            GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0") # Use for app versioning
+            VERSION="${GIT_TAG}-${BRANCH}-${SHA}" # Full descriptive version
+            TAG_VERSION="${BRANCH}-${SHA}" # Use branch-sha for docker tag
+
+            # Build tag list for Docker image
+            TAGS="${IMAGE_NAME}:${TAG_VERSION}"
+            PRIMARY_IMAGE="${IMAGE_NAME}:${TAG_VERSION}"
+
+            # Add convenience tags for develop/main branches
+            if [[ "$BRANCH" == "main" ]]; then
+              TAGS="${TAGS},${IMAGE_NAME}:latest,${IMAGE_NAME}:main"
+            elif [[ "$BRANCH" == "develop" ]]; then
+              TAGS="${TAGS},${IMAGE_NAME}:develop"
+            fi
+          fi
+
+          echo "App Version: $VERSION"
+          echo "Primary Docker Image: $PRIMARY_IMAGE"
+          echo "All Docker Tags: $TAGS"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "image_tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "primary_image=$PRIMARY_IMAGE" >> $GITHUB_OUTPUT
+
+          # Note: Consider if modifying package.json is truly necessary in CI.
+          # If APP_VERSION build-arg is used, this might be skipped.
+          echo "Attempting to update package.json version (will not fail build)..."
+          npm version $VERSION --no-git-tag-version --allow-same-version || echo "npm version failed or version unchanged, continuing..."
+
+      - name: Clean build directory
+        run: npm run clean
+      - name: Build Application
+        run: npm run build
+      - name: Generate API documentation
+        run: npm run docs
+
+      - name: Upload build artifacts for Docker job
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts # Single artifact containing everything needed for Docker build
+          path: |
+            dist/
+            docs/
+            package.json
+            package-lock.json
+            prisma/
+            # Ensure Prisma client binaries are included if generated
+            node_modules/.prisma/client/
+            .env.example
+            Dockerfile # Include Dockerfile itself
+            # tsconfig.json # Usually not needed at runtime
+          retention-days: 1 # Keep artifacts briefly
+
+  docker:
+    name: Docker Build and Push to Artifact Registry
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions: # Needed for WIF or SA Key auth
+      contents: read
+      id-token: write
+    steps:
+      # No checkout needed if using artifacts exclusively
+      # - uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: . # Download directly into workspace root
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # Use SA Key JSON (ensure secret is set) - OR switch to WIF
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+          # token_format: 'access_token' # Usually not needed unless specific API requires it
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        # project_id automatically picked up from auth action
+
+      - name: Configure Docker for Artifact Registry
+        # Improvement: Configure for the correct Artifact Registry domain
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      # Improvement: Use GitHub Actions Cache for Docker layers (type=gha)
+      - name: Build and push Docker image to GAR
+        uses: docker/build-push-action@v5
+        with:
+          context: . # Build context is now the downloaded artifact directory
+          push: true
+          tags: ${{ needs.build.outputs.image_tags }} # Use tags generated in build job
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ needs.build.outputs.app_version }} # Pass app version from build job
+
+      # Improvement: Removed manual cache steps for Docker layers
+
+      - name: Scan container image with Trivy
+        uses: aquasecurity/trivy-action@master # Consider pinning e.g. @0.18.0
+        with:
+          image-ref: ${{ needs.build.outputs.primary_image }} # Scan the primary tag
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1' # Fail step on critical/high vulns
+        continue-on-error: false # Fail job if scan finds critical/high vulns
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        # Always run this step to upload report, even if previous step failed
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  deploy-staging:
+    name: Deploy to GCP Staging (Cloud Run)
+    runs-on: ubuntu-latest
+    # Depends on build for image tags, docker for image push completion
+    needs: [build, docker]
+    if: success() && github.ref_name == 'develop' # Use ref_name for branch check
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}' # Or WIF
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          # Use primary image tag generated in build job
+          image: ${{ needs.build.outputs.primary_image }}
+          # Service name convention
+          service: ${{ github.event.repository.name }}-staging
+          region: ${{ env.GCP_REGION }}
+          # Note: Review --allow-unauthenticated. Consider adding --service-account=<runtime-sa-email>
+          flags: >-
+            --allow-unauthenticated
+            --port=3000
+            --memory=512Mi
+            --cpu=1
+            --min-instances=0
+            --max-instances=2
+            --set-env-vars=NODE_ENV=staging,APP_VERSION=${{ needs.build.outputs.app_version }}
+
+      # Note: Commenting on PRs requires the trigger to be 'pull_request'
+      # This job runs on push to 'develop', so this step won't execute as intended.
+      # Consider a separate workflow triggered by 'pull_request' for preview deployments if needed.
+      # - name: Create deployment comment on PR
+      #   uses: actions/github-script@v7
+      #   if: github.event_name == 'pull_request'
+      #   with: ...
+
+  deploy-production:
+    name: Deploy to GCP Production (Cloud Run)
+    runs-on: ubuntu-latest
+    needs: [build, docker]
+    if: success() && (github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v'))
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}' # Or WIF
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          # Use primary image tag generated in build job
+          image: ${{ needs.build.outputs.primary_image }}
+           # Service name convention (matches repo name for prod)
+          service: ${{ github.event.repository.name }}
+          region: ${{ env.GCP_REGION }}
+           # Note: Review --allow-unauthenticated. Consider adding --service-account=<runtime-sa-email>
+          flags: >-
+            --allow-unauthenticated
+            --port=3000
+            --memory=1Gi
+            --cpu=2
+            --min-instances=1
+            --max-instances=10
+            --set-env-vars=NODE_ENV=production,APP_VERSION=${{ needs.build.outputs.app_version }}
+
+      # Note: Tagging requires write permissions to the repo.
+      # Ensure the GITHUB_TOKEN has 'contents: write' if using default token,
+      # or use a PAT with repo write access. Consider if this auto-tagging is desired.
+      - name: Tag successful deployment in Git
+        if: success() && github.ref_name == 'main' # Only tag pushes to main branch
+        env:
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Or a PAT
+        run: |
+          DEPLOY_TAG="deploy-prod-$(date +'%Y%m%d-%H%M%S')-${{ github.sha }}"
+          echo "Creating git tag: $DEPLOY_TAG"
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git tag $DEPLOY_TAG
+          git push origin $DEPLOY_TAG
+
+  notify:
+    name: Notify Team (Slack)
+    runs-on: ubuntu-latest
+    # Ensure it runs after potential deployments
+    needs: [deploy-staging, deploy-production]
+    # Run always to report success or failure, but skip for PR checks
+    if: always() && github.event_name != 'pull_request'
+    steps:
+      - name: Determine deployment outcome
+        id: status
+        run: |
+          # Determine status based on needed deployment jobs
+          STAGING_RESULT="${{ needs.deploy-staging.result }}"
+          PROD_RESULT="${{ needs.deploy-production.result }}"
+          FINAL_STATUS="failure" # Default to failure
+
+          if [[ "$STAGING_RESULT" == "success" || "$PROD_RESULT" == "success" ]]; then
+            FINAL_STATUS="success"
+          fi
+
+          # Craft message based on which deployment ran/succeeded/failed
+          MESSAGE="Repository: `${{ github.repository }}`\nBranch/Tag: `${{ github.ref_name }}`\nCommit: `${{ github.sha }}` (<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|View Commit>)"
+          TITLE=""
+
+          if [[ "$FINAL_STATUS" == "success" ]]; then
+            TITLE="🚀 Deployment Successful!"
+            if [[ "$STAGING_RESULT" == "success" ]]; then
+              MESSAGE+="\n✅ Staging Deployment: ${{ needs.deploy-staging.outputs.url || 'OK' }}"
+            fi
+            if [[ "$PROD_RESULT" == "success" ]]; then
+              MESSAGE+="\n✅ Production Deployment: ${{ needs.deploy-production.outputs.url || 'OK' }}"
+            fi
+          else
+            TITLE="⚠️ Deployment Failed or Skipped"
+             # Provide details on failures if they were not skipped
+            if [[ "$STAGING_RESULT" != "skipped" && "$STAGING_RESULT" != "success" ]]; then
+               MESSAGE+="\n❌ Staging Deployment Failed (${STAGING_RESULT})"
+             fi
+             if [[ "$PROD_RESULT" != "skipped" && "$PROD_RESULT" != "success" ]]; then
+               MESSAGE+="\n❌ Production Deployment Failed (${PROD_RESULT})"
+             fi
+          fi
+          MESSAGE+="\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>"
+
+          # Use heredoc for multi-line message output
+          echo "status=${FINAL_STATUS}" >> $GITHUB_OUTPUT
+          echo "title<<EOF" >> $GITHUB_OUTPUT
+          echo "${TITLE}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "details<<EOF" >> $GITHUB_OUTPUT
+          echo "${MESSAGE}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        uses: rtCamp/action-slack-notify@v2.2.0
+        # Only send if status was determined (i.e., not skipped entirely)
+        if: steps.status.outputs.status != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_COLOR: ${{ steps.status.outputs.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: ${{ steps.status.outputs.title }}
+          SLACK_MESSAGE: ${{ steps.status.outputs.details }}
+          SLACK_FOOTER: "GitHub Actions CI/CD"

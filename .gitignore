@@ -1,0 +1,170 @@
+#-----------------------------------------------------------------------------
+# Dependency Directories
+#-----------------------------------------------------------------------------
+# Usually stored elsewhere, but good practice to ignore these globally
+# /node_modules # Handled below with more specificity
+
+# Node/npm/pnpm/yarn specific
+node_modules/
+package-lock.json # Usually committed, but can be ignored in library projects
+yarn.lock         # Usually committed
+pnpm-lock.yaml    # Usually committed
+*.tsbuildinfo     # TypeScript incremental build info
+
+# If you use a specific directory for downloaded dependencies
+# vendor/
+# deps/
+
+#-----------------------------------------------------------------------------
+# Build Output & Compiled Files
+#-----------------------------------------------------------------------------
+dist/
+build/
+out/
+output/
+*.o
+*.obj
+*.wasm
+
+#-----------------------------------------------------------------------------
+# Logs & Runtime Data
+#-----------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+# Include any custom log file patterns used by your app
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Node Heap Dump files
+*.heapsnapshot
+*.heapdump
+*.cpuprofile
+
+# Node Diagnostic reports (Node >= 11.8)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+#-----------------------------------------------------------------------------
+# Environment Variables & Configuration
+#-----------------------------------------------------------------------------
+# IMPORTANT: Never commit sensitive environment variables or local overrides!
+.env
+.env.*
+.env.*.local
+!.env.example # Ensure the example template IS committed
+
+# Local configuration overrides (if used)
+config.local.js
+config.local.ts
+settings.local.json
+
+#-----------------------------------------------------------------------------
+# Testing, Coverage & Documentation
+#-----------------------------------------------------------------------------
+coverage/
+*.lcov
+.nyc_output
+lib-cov # Old coverage standard
+.vitest-cache/ # Vitest cache directory
+
+docs/ # Generated documentation (e.g., by TypeDoc)
+
+#-----------------------------------------------------------------------------
+# Caching
+#-----------------------------------------------------------------------------
+.npm/           # Optional npm cache directory
+.eslintcache    # Optional eslint cache
+.cache/         # General purpose cache directory
+*.cache         # General cache files
+
+#-----------------------------------------------------------------------------
+# Archives & Packaged Output
+#-----------------------------------------------------------------------------
+*.tgz           # Output of 'npm pack'
+*.zip
+*.tar
+*.gz
+*.rar
+
+#-----------------------------------------------------------------------------
+# IDE / Editor / OS Specific Files
+#-----------------------------------------------------------------------------
+# VS Code
+.vscode/*
+# Keep shared VS Code settings for the team
+!/.vscode/settings.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
+!/.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ / JetBrains
+.idea/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Note: Thumbnails, Spotlight caches etc., are usually user-level ignores
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux / Misc Editor / Backup files
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+.history/
+
+#-----------------------------------------------------------------------------
+# Tooling Specific
+#-----------------------------------------------------------------------------
+# Prisma
+# The client is usually generated inside node_modules/.prisma/client
+# If you customize the output location OUTSIDE node_modules, ignore it here:
+src/generated/prisma/
+
+# Google Cloud / GCP
+# !! NEVER commit Service Account keys or sensitive credential files !!
+# Use Secret Manager, Workload Identity Federation, or secure ENV variables instead.
+*service-account*.json
+*gcp-key*.json
+*.pem
+.gcloud/ # Local gcloud CLI config/auth cache
+
+# Snyk (usually doesn't contain secrets, but can be ignored if desired)
+# .snyk
+
+#-----------------------------------------------------------------------------
+# Miscellaneous
+#-----------------------------------------------------------------------------
+# Output of 'npm pack' (already covered, but explicit doesn't hurt)
+# *.tgz
+
+# Yarn integrity file (less common now)
+# .yarn-integrity
+
+# NVM (Node Version Manager) file
+.nvmrc
+
+# Docker data volumes (if mapped locally)
+# docker-data/
+
+# Temporary Files
+tmp/
+temp/
+
+# If using specific libraries that generate local files not needed in git
+# .some-library-cache/

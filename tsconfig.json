@@ -1,0 +1,61 @@
+{
+  "compilerOptions": {
+    /* Base Options */
+    "target": "ES2022",
+    "module": "NodeNext",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "sourceMap": true,
+
+    /* Build Optimization */
+    "incremental": true,
+    "composite": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+
+    /* Strict Type Checking Options */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitAny": true,               // Avoid accidental any
+    "strictNullChecks": true,            // Treat null and undefined as distinct
+    "strictFunctionTypes": true,         // Ensure safe function assignability
+    "strictBindCallApply": true,         // Safer usage of .bind, .call, .apply
+    "strictPropertyInitialization": true,// Catch uninitialized class props
+    "noImplicitThis": true,              // Prevent accidental any in this
+    "useUnknownInCatchVariables": true,  // Encourages safer error handling
+    "alwaysStrict": true,                 // Adds 'use strict' at the top of files
+
+
+    /* Module Resolution Options */
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true, // or "noEmit": true
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": false, // do not change if we need compatibility with Node.js ESM
+
+    /* Advanced Options */
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
+}

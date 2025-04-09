@@ -1,0 +1,53 @@
+# Enforce consistent line endings (LF) and handle file types correctly in Git.
+# This helps prevent issues with line endings across different operating systems
+# (Windows CRLF vs Linux/macOS LF) and ensures Git handles diffs appropriately.
+
+# Auto-detect text files and ensure they use LF line endings in the repository
+# and on checkout, regardless of the user's core.autocrlf setting.
+# This is the primary setting and generally recommended for cross-platform projects.
+* text=auto eol=lf
+
+# Explicitly ensure common text files always use LF line endings.
+# While often redundant due to the rule above (if text=auto works correctly),
+# this reinforces the intent and ensures correct handling for these types.
+*.js      text eol=lf
+*.jsx     text eol=lf
+*.ts      text eol=lf
+*.tsx     text eol=lf
+*.json    text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.md      text eol=lf
+*.sh      text eol=lf
+*.prisma  text eol=lf
+*.css     text eol=lf
+*.scss    text eol=lf
+*.html    text eol=lf
+*.env* text eol=lf
+*.config.js text eol=lf
+ # e.g., .npmrc, .prettierrc, .eslintrc.js (if not .js)
+.*rc      text eol=lf
+Dockerfile text eol=lf
+
+# Declare files that should always be treated as binary.
+# Git will not attempt to change their line endings or diff/merge them as text.
+# Add other project-specific binary types as needed.
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.webp    binary
+*.pdf     binary
+# Fonts
+*.woff    binary
+*.woff2   binary
+*.ttf     binary
+*.otf     binary
+*.eot     binary
+# Compiled binaries / Archives (if they were ever committed)
+*.wasm    binary
+*.zip     binary
+*.gz      binary
+*.jar     binary
+*.exe     binary

@@ -1,0 +1,119 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+
+}
+
+generator client {
+  provider        = "prisma-client-js"
+}
+
+// ---------- Models ----------
+
+model Product {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // Soft delete support
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  sku         String   @unique @db.VarChar(50)
+  isActive    Boolean  @default(true)
+  stock       Int      @default(0)
+  categories  Category[]
+
+  // Relations
+  images      ProductImage[]
+  orderItems  OrderItem[]
+
+  // Add this index for faster queries by name
+  @@index([name], name: "product_name_idx")
+  // Index for common filtering condition
+  @@index([isActive], name: "product_active_idx")
+  // Compound index for common query patterns
+  @@index([isActive, stock], name: "product_active_stock_idx")
+  // Index for soft delete queries
+  @@index([deletedAt], name: "product_deleted_idx")
+  
+  @@map("products")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // Soft delete support
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  slug        String   @unique @db.VarChar(50)
+  products    Product[]
+
+  @@index([slug], name: "category_slug_idx")
+  @@index([deletedAt], name: "category_deleted_idx")
+  @@map("categories")
+}
+
+model ProductImage {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // Soft delete support
+  url         String   @db.VarChar(255)
+  altText     String?  @db.VarChar(100)
+  isMain      Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  
+  // Relations
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId], name: "product_image_product_idx")
+  @@index([deletedAt], name: "product_image_deleted_idx")
+  @@map("product_images")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // Soft delete support
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  
+  // Relations
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+
+  @@index([productId], name: "order_item_product_idx")
+  @@index([orderId], name: "order_item_order_idx")
+  @@index([deletedAt], name: "order_item_deleted_idx")
+  @@map("order_items")
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?   // Soft delete support
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  
+  // Relations
+  items       OrderItem[]
+  
+  @@index([status], name: "order_status_idx")
+  @@index([createdAt], name: "order_created_idx")
+  @@index([deletedAt], name: "order_deleted_idx")
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}

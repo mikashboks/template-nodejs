@@ -1,0 +1,273 @@
+// src/routes/product.routes.ts
+import { Router } from 'express';
+import { ProductController } from '../controllers/product.controller.js';
+import { requestIdMiddleware } from '../middleware/request-id.middleware.js';
+import { asyncHandler } from '../middleware/async-handler.middleware.js';
+import { cacheControl } from '../middleware/cache-control.middleware.js';
+import { validateResourceId } from '../middleware/validation.middleware.js';
+import { rateLimiter } from '../middleware/rate-limit.middleware.js';
+
+// Create router
+const router = Router();
+const productController = new ProductController();
+
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Get all products with pagination and filtering
+ *     tags: [Products]
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         description: Page number
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - name: limit
+ *         in: query
+ *         description: Number of items per page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - name: search
+ *         in: query
+ *         description: Search term
+ *         schema:
+ *           type: string
+ *       - name: categoryId
+ *         in: query
+ *         description: Filter by category ID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - name: minPrice
+ *         in: query
+ *         description: Minimum price
+ *         schema:
+ *           type: number
+ *       - name: maxPrice
+ *         in: query
+ *         description: Maximum price
+ *         schema:
+ *           type: number
+ *       - name: isActive
+ *         in: query
+ *         description: Filter by active status
+ *         schema:
+ *           type: boolean
+ *       - name: sortBy
+ *         in: query
+ *         description: Field to sort by
+ *         schema:
+ *           type: string
+ *           enum: [name, price, createdAt]
+ *           default: createdAt
+ *       - name: sortOrder
+ *         in: query
+ *         description: Sort order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *     responses:
+ *       200:
+ *         description: List of products
+ *       400:
+ *         description: Invalid query parameters
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  '/',
+  requestIdMiddleware,
+  cacheControl({ maxAge: 60, staleWhileRevalidate: 600 }), // 1 minute cache, 10 minutes stale
+  asyncHandler(productController.getProducts)
+);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Get a product by ID
+ *     tags: [Products]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: Product ID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Product details
+ *       404:
+ *         description: Product not found
+ *       500:
+ *         description: Server error
+ */
+router.get(
+  '/:id',
+  requestIdMiddleware,
+  validateResourceId('id'),
+  cacheControl({ maxAge: 300, staleWhileRevalidate: 3600 }), // 5 minutes cache, 1 hour stale
+  asyncHandler(productController.getProductById)
+);
+
+/**
+ * @swagger
+ * /api/products:
+ *   post:
+ *     summary: Create a new product
+ *     tags: [Products]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - price
+ *               - sku
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *                 minimum: 0.01
+ *               sku:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 50
+ *               stock:
+ *                 type: integer
+ *                 minimum: 0
+ *                 default: 0
+ *               categoryIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *     responses:
+ *       201:
+ *         description: Product created successfully
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Conflict - SKU already exists
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  '/',
+  requestIdMiddleware,
+  rateLimiter({ windowMs: 60000, max: 10 }), // 10 requests per minute
+  asyncHandler(productController.createProduct)
+);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   put:
+ *     summary: Update a product
+ *     tags: [Products]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: Product ID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *                 minimum: 0.01
+ *               sku:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 50
+ *               stock:
+ *                 type: integer
+ *                 minimum: 0
+ *               isActive:
+ *                 type: boolean
+ *               categoryIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *     responses:
+ *       200:
+ *         description: Product updated successfully
+ *       400:
+ *         description: Invalid input data
+ *       404:
+ *         description: Product not found
+ *       409:
+ *         description: Conflict - SKU already exists
+ *       500:
+ *         description: Server error
+ */
+router.put(
+  '/:id',
+  requestIdMiddleware,
+  validateResourceId('id'),
+  rateLimiter({ windowMs: 60000, max: 20 }), // 20 requests per minute
+  asyncHandler(productController.updateProduct)
+);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   delete:
+ *     summary: Delete a product
+ *     tags: [Products]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         description: Product ID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Product deleted successfully
+ *       404:
+ *         description: Product not found
+ *       409:
+ *         description: Conflict - Cannot delete product in use
+ *       500:
+ *         description: Server error
+ */
+router.delete(
+  '/:id',
+  requestIdMiddleware,
+  validateResourceId('id'),
+  rateLimiter({ windowMs: 60000, max: 10 }), // 10 requests per minute
+  asyncHandler(productController.deleteProduct)
+);
+
+export default router;

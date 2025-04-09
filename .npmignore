@@ -1,0 +1,26 @@
+# Files and directories to exclude when publishing the package to npm
+
+# Source files (if publishing compiled dist)
+src/
+
+# Config files not needed in published package
+tsconfig.json
+.eslintrc.cjs
+.prettierrc
+.editorconfig
+.gitattributes
+.eslintignore
+.nvmrc
+vitest.config.ts
+
+# Development/CI related files
+.github/
+docker/
+scripts/
+docs/
+test/
+coverage/
+*.log
+.env*
+.vscode/
+.idea/
