@@ -1,89 +1,125 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import { IService, ServiceOptions, PaginatedResult, BaseQuery } from './service.interface';
-import { logger, createChildLogger } from '@/libs/logger.ts';
+
+import { AbortError } from "@/errors/base.ts";
+import { createChildLogger } from "@/libs/logger.ts";
+import { Logger } from "pino";
 
 /**
- * Abstract base service implementing common functionality for Prisma-based services
+ * Trace context for distributed tracing
  */
-export abstract class AbstractService<
-  T, // Entity type
-  Q extends BaseQuery = BaseQuery, // Query type
-  CreateInput = any, // Create input type
-  UpdateInput = any, // Update input type
-  Id = string // ID type
-> implements IService<T, Q, CreateInput, UpdateInput, Id> {
-  protected prisma: PrismaClient;
-  protected logger: any; // Use your logger type
-  protected entityName: string;
+export type TraceContext = Record<string, any>;
 
-  constructor(entityName: string) {
-    this.entityName = entityName;
-    this.logger = createChildLogger({ module: `${entityName}Service` });
-    
-    // Create a new PrismaClient instance
-    this.prisma = new PrismaClient({
-      // Set log levels based on environment
-      log: config().server.isDevelopment 
-        ? ['query', 'info', 'warn', 'error'] 
-        : ['error'],
-      // Configure connection timeout for Cloud Run
-      datasources: {
-        db: {
-          url: config().database.url
-        }
-      },
-      // Enable Prisma metrics for monitoring
-      __internal: {
-        measurePerformance: true
-      }
-    });
+/**
+ * Common options for service methods
+ */
+export interface ServiceOptions {
+  /** AbortSignal for cancellation support */
+  signal?: AbortSignal;
+  /** Transaction context if running in a transaction */
+  transactionContext?: any;
+  /** Trace context for distributed tracing */
+  traceContext?: TraceContext;
+}
+
+/**
+ * Pagination result interface
+ */
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page?: number | null | undefined;
+  limit?: number | null | undefined;
+  totalPages?: number | null | undefined;
+  hasMore?: boolean | null | undefined;
+  nextCursor?: any | null | undefined;
+}
+
+/**
+ * Base query parameters for paginated requests
+ */
+export interface BaseQuery {
+  page?: number | null | undefined;
+  limit?: number | null | undefined;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Interface for service initialization options
+ */
+export interface ServiceInitOptions {
+  logger?: Logger;
+  traceContext?: TraceContext;
+}
+
+/**
+ * Generic service interface that defines common operations
+ */
+export interface IService {
+  /**
+   * Initialize the service with optional context
+   */
+  init(options?: ServiceInitOptions): void;
+  
+  /**
+   * Cleanup resources used by the service
+   */
+  cleanup(): Promise<void>;
+  
+  /**
+   * Run operations in a transaction
+   */
+  withTransaction<T>(callback: (service: this) => Promise<T>, options?: ServiceOptions): Promise<T>;
+}
+
+/**
+ * Abstract base service providing common functionality
+ */
+export abstract class AbstractService implements IService {
+  protected logger: Logger;
+  protected serviceName: string;
+  protected initialized: boolean = false;
+
+  constructor(serviceName: string, logger?: Logger) {
+    this.serviceName = serviceName;
+    this.logger = logger || createChildLogger({ service: serviceName });
   }
 
   /**
-   * Disconnect from database - important for Cloud Run to prevent connection leaks
+   * Initialize the service with optional context
    */
-  public async disconnect(): Promise<void> {
-    try {
-      await this.prisma.$disconnect();
-    } catch (err) {
-      this.logger.error({ err }, `Error disconnecting from database`);
+  public init(options?: ServiceInitOptions): void {
+    if (options?.logger) {
+      this.logger = options.logger;
     }
+    
+    if (options?.traceContext) {
+      this.logger = this.logger.child(options.traceContext);
+    }
+    
+    this.initialized = true;
+    this.logger.debug(`${this.serviceName} service initialized`);
   }
 
   /**
-   * Find entities with pagination and filtering
-   * Requires implementation in child classes to handle specific entity requirements
+   * Cleanup resources used by the service
    */
-  public abstract find(query: Q, options?: ServiceOptions): Promise<PaginatedResult<T>>;
+  public async cleanup(): Promise<void> {
+    // Base implementation does nothing
+    this.logger.debug(`${this.serviceName} service cleaned up`);
+  }
 
   /**
-   * Find an entity by ID
-   * Requires implementation in child classes
+   * Run operations in a transaction - must be implemented by subclasses
    */
-  public abstract findById(id: Id, options?: ServiceOptions): Promise<T | null>;
-
+  public abstract withTransaction<T>(
+    callback: (service: this) => Promise<T>, 
+    options?: ServiceOptions
+  ): Promise<T>;
+  
   /**
-   * Create a new entity
-   * Requires implementation in child classes
+   * Create a child logger with trace context
    */
-  public abstract create(data: CreateInput, options?: ServiceOptions): Promise<T>;
-
-  /**
-   * Update an existing entity
-   * Requires implementation in child classes
-   */
-  public abstract update(id: Id, data: UpdateInput, options?: ServiceOptions): Promise<T | null>;
-
-  /**
-   * Delete an entity
-   * Requires implementation in child classes
-   */
-  public abstract delete(id: Id, options?: ServiceOptions): Promise<boolean>;
-
-  /**
-   * Helper method to create a child logger with trace context
-   */
-  protected getLogger(options?: ServiceOptions): any {
+  protected getContextLogger(options?: ServiceOptions): Logger {
     if (options?.traceContext) {
       return this.logger.child(options.traceContext);
     }
@@ -91,68 +127,58 @@ export abstract class AbstractService<
   }
 
   /**
-   * Helper method to check if the request was aborted
+   * Check if a request has been aborted
    */
   protected checkAborted(options?: ServiceOptions): void {
     if (options?.signal?.aborted) {
-      throw new Error('Request aborted');
+      throw new AbortError('Request aborted');
     }
   }
-
+  
   /**
-   * Helper method to handle common database errors with appropriate HTTP status codes
+   * Track method execution time and log performance
    */
-  protected handleDatabaseError(err: any, operation: string, entityId?: Id, data?: any): never {
-    const logContext = {
-      err,
-      entityName: this.entityName,
-      operation,
-      ...(entityId !== undefined && { entityId }),
-      ...(data !== undefined && { data })
-    };
-
-    this.logger.error(logContext, `Error during ${operation} operation`);
-
-    // Handle specific Prisma errors
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      // Connection issues - important for Cloud Run
-      if (err.code === 'P1001' || err.code === 'P1002') {
-        throw new CloudRunError('Database connection error', 503);
-      }
-      
-      // Query timeout
-      if (err.code === 'P1008') {
-        throw new CloudRunError('Database query timeout', 504);
-      }
-
-      // Not found
-      if (err.code === 'P2025' || err.code === 'P2001') {
-        if (operation === 'update' || operation === 'findById') {
-          // Return null in derived classes for not found in appropriate operations
-          throw new CloudRunError(`${this.entityName} not found`, 404);
-        }
-      }
-      
-      // Unique constraint violations
-      if (err.code === 'P2002') {
-        throw new CloudRunError(`A ${this.entityName} with this identifier already exists`, 409);
-      }
-      
-      // Foreign key constraint violations
-      if (err.code === 'P2003') {
-        if (operation === 'delete') {
-          throw new CloudRunError(`Cannot delete ${this.entityName}: it is referenced by other records`, 409);
-        }
-        throw new CloudRunError(`Invalid reference in ${this.entityName} data`, 400);
-      }
-    }
+  protected async trackExecution<T>(
+    methodName: string,
+    executeFunc: () => Promise<T>,
+    options?: ServiceOptions,
+    context?: Record<string, any>
+  ): Promise<T> {
+    this.checkAborted(options);
     
-    // Handle abort error
-    if (err.name === 'AbortError') {
-      throw new CloudRunError('Request aborted', 499);
-    }
+    const contextLogger = this.getContextLogger(options);
+    const startTime = Date.now();
     
-    // Generic error fallback
-    throw new CloudRunError(`Error during ${this.entityName} ${operation}`, 500);
+    try {
+      const result = await executeFunc();
+      const duration = Date.now() - startTime;
+      
+      if (duration > 1000) { // Log slow operations (over 1 second)
+        contextLogger.warn({
+          method: methodName,
+          duration,
+          ...context
+        }, `Slow operation detected: ${this.serviceName}.${methodName} (${duration}ms)`);
+      } else {
+        contextLogger.debug({
+          method: methodName,
+          duration,
+          ...context
+        }, `Executed ${this.serviceName}.${methodName}`);
+      }
+      
+      return result;
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      
+      contextLogger.error({
+        method: methodName,
+        duration,
+        error,
+        ...context
+      }, `Error in ${this.serviceName}.${methodName}: ${error.message}`);
+      
+      throw error;
+    }
   }
 }

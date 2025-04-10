@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  # Improvement: Use the exact pinned version if possible (e.g., '22.14.0')
+  # Improvement: Use the exact pinned version if possible (e.g., '20.19.0')
   NODE_VERSION: '22.x'
   # Improvement: Define region and ensure it's set (via env or secrets)
   GCP_REGION: ${{ secrets.GCP_REGION || 'us-central1' }}

@@ -1,6 +1,6 @@
-import { AppError } from './base.js';
+import { BaseError } from './base.js';
 
-export class DatabaseError extends AppError {
+export class DatabaseError extends BaseError {
   constructor(message = 'Database operation failed', cause?: Error, details?: any) {
     super(message, 500, 'DatabaseError', details, cause);
   }

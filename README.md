@@ -56,7 +56,7 @@ A production-ready Node.js TypeScript boilerplate providing a solid foundation w
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v22+ (see `engines` field in `package.json`)
+- [Node.js](https://nodejs.org/) v20+ (see `engines` field in `package.json`)
 - [npm](https://www.npmjs.com/) v10+ (usually comes with Node.js)
 - [Docker](https://www.docker.com/) (optional, for containerization)
 - [Git](https://git-scm.com/) (for version control)

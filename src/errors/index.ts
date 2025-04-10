@@ -1,7 +1,7 @@
 // src/errors/index.ts
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
-import { AppError } from './base.js';
+import { BaseError } from './base.js';
 import { DatabaseError } from './database-errors.js';
 import {
   ConflictError,
@@ -30,14 +30,14 @@ import {
  * @param err - Any error thrown in the application
  * @returns An AppError instance with appropriate status code and details
  */
-export function normalizeError(err: unknown): AppError {
+export function normalizeError(err: unknown): BaseError {
   // Handle null or undefined
   if (err === null || err === undefined) {
-    return new AppError('Unknown error occurred', 500, 'UnknownError');
+    return new BaseError('Unknown error occurred', 500, 'UnknownError');
   }
 
   // Already an AppError
-  if (err instanceof AppError) {
+  if (err instanceof BaseError) {
     return err;
   }
 
@@ -142,7 +142,7 @@ export function normalizeError(err: unknown): AppError {
     typeof error.name === 'string' ? error.name : 'UnknownError';
 
   // Handle any other error as a generic error
-  return new AppError(
+  return new BaseError(
     message,
     statusCode,
     errorType,
