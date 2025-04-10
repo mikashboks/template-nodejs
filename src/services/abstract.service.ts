@@ -1,7 +1,7 @@
+import { Logger } from 'pino';
 
-import { AbortError } from "@/errors/base.ts";
-import { createChildLogger } from "@/libs/logger.ts";
-import { Logger } from "pino";
+import { AbortError } from '@/errors/base.js';
+import { createChildLogger } from '@/libs/logger.js';
 
 /**
  * Trace context for distributed tracing
@@ -59,16 +59,19 @@ export interface IService {
    * Initialize the service with optional context
    */
   init(options?: ServiceInitOptions): void;
-  
+
   /**
    * Cleanup resources used by the service
    */
   cleanup(): Promise<void>;
-  
+
   /**
    * Run operations in a transaction
    */
-  withTransaction<T>(callback: (service: this) => Promise<T>, options?: ServiceOptions): Promise<T>;
+  withTransaction<T>(
+    callback: (service: this) => Promise<T>,
+    options?: ServiceOptions,
+  ): Promise<T>;
 }
 
 /**
@@ -91,11 +94,11 @@ export abstract class AbstractService implements IService {
     if (options?.logger) {
       this.logger = options.logger;
     }
-    
+
     if (options?.traceContext) {
       this.logger = this.logger.child(options.traceContext);
     }
-    
+
     this.initialized = true;
     this.logger.debug(`${this.serviceName} service initialized`);
   }
@@ -112,10 +115,10 @@ export abstract class AbstractService implements IService {
    * Run operations in a transaction - must be implemented by subclasses
    */
   public abstract withTransaction<T>(
-    callback: (service: this) => Promise<T>, 
-    options?: ServiceOptions
+    callback: (service: this) => Promise<T>,
+    options?: ServiceOptions,
   ): Promise<T>;
-  
+
   /**
    * Create a child logger with trace context
    */
@@ -134,7 +137,7 @@ export abstract class AbstractService implements IService {
       throw new AbortError('Request aborted');
     }
   }
-  
+
   /**
    * Track method execution time and log performance
    */
@@ -142,42 +145,52 @@ export abstract class AbstractService implements IService {
     methodName: string,
     executeFunc: () => Promise<T>,
     options?: ServiceOptions,
-    context?: Record<string, any>
+    context?: Record<string, any>,
   ): Promise<T> {
     this.checkAborted(options);
-    
+
     const contextLogger = this.getContextLogger(options);
     const startTime = Date.now();
-    
+
     try {
       const result = await executeFunc();
       const duration = Date.now() - startTime;
-      
-      if (duration > 1000) { // Log slow operations (over 1 second)
-        contextLogger.warn({
-          method: methodName,
-          duration,
-          ...context
-        }, `Slow operation detected: ${this.serviceName}.${methodName} (${duration}ms)`);
+
+      if (duration > 1000) {
+        // Log slow operations (over 1 second)
+        contextLogger.warn(
+          {
+            method: methodName,
+            duration,
+            ...context,
+          },
+          `Slow operation detected: ${this.serviceName}.${methodName} (${duration}ms)`,
+        );
       } else {
-        contextLogger.debug({
-          method: methodName,
-          duration,
-          ...context
-        }, `Executed ${this.serviceName}.${methodName}`);
+        contextLogger.debug(
+          {
+            method: methodName,
+            duration,
+            ...context,
+          },
+          `Executed ${this.serviceName}.${methodName}`,
+        );
       }
-      
+
       return result;
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      
-      contextLogger.error({
-        method: methodName,
-        duration,
-        error,
-        ...context
-      }, `Error in ${this.serviceName}.${methodName}: ${error.message}`);
-      
+
+      contextLogger.error(
+        {
+          method: methodName,
+          duration,
+          error,
+          ...context,
+        },
+        `Error in ${this.serviceName}.${methodName}: ${error.message}`,
+      );
+
       throw error;
     }
   }

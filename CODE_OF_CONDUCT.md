@@ -12,4 +12,4 @@ and orientation.
 We pledge to act and interact in ways that contribute to an open, welcoming,
 diverse, inclusive, and healthy community.
 
-*([Full Code of Conduct text](https://www.contributor-covenant.org/version/2/1/code_of_conduct/))*
+_([Full Code of Conduct text](https://www.contributor-covenant.org/version/2/1/code_of_conduct/))_

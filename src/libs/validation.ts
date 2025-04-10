@@ -1,6 +1,5 @@
 import { ZodSchema } from 'zod';
-import { z, ZodError, ZodIssue } from 'zod';
-
+import { z, ZodError } from 'zod';
 
 export async function validateWithZod<S extends any, D>(
   schema: ZodSchema<S>,
@@ -17,6 +16,10 @@ export async function validateWithZod<S extends any, D>(
   }
 }
 
-export type ValidationResult = 
+export type ValidationResult =
   | { valid: true; data?: any }
-  | { valid: false; message?: string, errors: string[] | z.ZodIssue[] | ZodError};
+  | {
+      valid: false;
+      message?: string;
+      errors: string[] | z.ZodIssue[] | ZodError;
+    };

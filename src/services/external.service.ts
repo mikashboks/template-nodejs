@@ -1,8 +1,14 @@
-import { ExternalServiceError, RetryableError } from "@/errors/base.ts";
-import { Logger } from "pino";
-import { AbstractService, TraceContext, ServiceOptions } from "./abstract.service.ts";
-const GoogleAuth = require("google-auth-library");
+import { Logger } from 'pino';
 
+import { ExternalServiceError, RetryableError } from '@/errors/base.js';
+
+import {
+  AbstractService,
+  TraceContext,
+  ServiceOptions,
+} from './abstract.service.js';
+
+const GoogleAuth = require('google-auth-library');
 
 /**
  * Options for configuring the circuit breaker pattern.
@@ -56,7 +62,7 @@ export abstract class ExternalService extends AbstractService {
     defaultTimeout: number = 10000,
     logger?: Logger,
     retryOptions?: RetryOptions,
-    circuitBreakerOptions?: CircuitBreakerOptions
+    circuitBreakerOptions?: CircuitBreakerOptions,
   ) {
     super(serviceName, logger);
     this.baseUrl = baseUrl;
@@ -76,22 +82,27 @@ export abstract class ExternalService extends AbstractService {
       enabled: circuitBreakerOptions?.enabled ?? false,
       failureThreshold: circuitBreakerOptions?.failureThreshold ?? 5,
       resetTimeoutMs: circuitBreakerOptions?.resetTimeoutMs ?? 30000,
-      halfOpenRequestThreshold: circuitBreakerOptions?.halfOpenRequestThreshold ?? 1
+      halfOpenRequestThreshold:
+        circuitBreakerOptions?.halfOpenRequestThreshold ?? 1,
     };
 
-    this.logger.info({
+    this.logger.info(
+      {
         service: this.serviceName,
         baseUrl: this.baseUrl,
         defaultTimeout: this.defaultTimeout,
         retryEnabled: this.retryOptions.retries > 0,
-        circuitBreakerEnabled: this.circuitBreakerOptions.enabled
-    }, `${this.serviceName} external service client initialized`);
+        circuitBreakerEnabled: this.circuitBreakerOptions.enabled,
+      },
+      `${this.serviceName} external service client initialized`,
+    );
   }
 
   /**
    * Checks the current state of the circuit breaker and throws an error if the circuit is open.
    * Allows transitioning from 'open' to 'half-open' if the reset timeout has passed.
    * Limits requests in the 'half-open' state.
+   *
    * @throws Error if the circuit is 'open' or 'half-open' and the request limit is reached.
    */
   private checkCircuitBreaker(): void {
@@ -102,20 +113,34 @@ export abstract class ExternalService extends AbstractService {
     const now = Date.now();
 
     if (this.circuitState === 'open') {
-      if (now - this.lastFailureTime > this.circuitBreakerOptions.resetTimeoutMs) {
+      if (
+        now - this.lastFailureTime >
+        this.circuitBreakerOptions.resetTimeoutMs
+      ) {
         this.circuitState = 'half-open';
         this.halfOpenRequests = 0; // Reset counter for the new half-open phase
-        this.logger.info(`Circuit breaker state changed to 'half-open' for ${this.serviceName}`);
+        this.logger.info(
+          `Circuit breaker state changed to 'half-open' for ${this.serviceName}`,
+        );
       } else {
-        this.logger.warn(`Circuit breaker is 'open' for ${this.serviceName}. Request blocked.`);
+        this.logger.warn(
+          `Circuit breaker is 'open' for ${this.serviceName}. Request blocked.`,
+        );
         throw new Error(`Circuit breaker for ${this.serviceName} is open`);
       }
     }
 
     if (this.circuitState === 'half-open') {
-      if (this.halfOpenRequests >= this.circuitBreakerOptions.halfOpenRequestThreshold) {
-        this.logger.warn(`Circuit breaker is 'half-open' for ${this.serviceName} and request limit reached. Request blocked.`);
-        throw new Error(`Circuit breaker for ${this.serviceName} is half-open and request limit reached`);
+      if (
+        this.halfOpenRequests >=
+        this.circuitBreakerOptions.halfOpenRequestThreshold
+      ) {
+        this.logger.warn(
+          `Circuit breaker is 'half-open' for ${this.serviceName} and request limit reached. Request blocked.`,
+        );
+        throw new Error(
+          `Circuit breaker for ${this.serviceName} is half-open and request limit reached`,
+        );
       }
       // Increment only if check passes and request proceeds
       // This is implicitly handled by the calling `request` method now
@@ -135,12 +160,16 @@ export abstract class ExternalService extends AbstractService {
       this.circuitState = 'closed';
       this.failureCount = 0;
       this.halfOpenRequests = 0; // Reset counter
-      this.logger.info(`Circuit breaker state changed back to 'closed' for ${this.serviceName} after successful half-open request`);
+      this.logger.info(
+        `Circuit breaker state changed back to 'closed' for ${this.serviceName} after successful half-open request`,
+      );
     } else if (this.circuitState === 'closed') {
       // Reset failure count on any success in closed state
       if (this.failureCount > 0) {
-          this.logger.debug(`Resetting failure count for ${this.serviceName} after successful request.`);
-          this.failureCount = 0;
+        this.logger.debug(
+          `Resetting failure count for ${this.serviceName} after successful request.`,
+        );
+        this.failureCount = 0;
       }
     }
     // No change needed if already 'open' (success shouldn't happen if open)
@@ -161,26 +190,35 @@ export abstract class ExternalService extends AbstractService {
     if (this.circuitState === 'half-open') {
       // Any failure in half-open state trips the circuit back to open
       this.circuitState = 'open';
-      this.logger.warn(`Circuit breaker state changed back to 'open' for ${this.serviceName} after failed half-open request`);
+      this.logger.warn(
+        `Circuit breaker state changed back to 'open' for ${this.serviceName} after failed half-open request`,
+      );
     } else if (this.circuitState === 'closed') {
       this.failureCount++;
-      this.logger.debug(`Failure count for ${this.serviceName} incremented to ${this.failureCount}`);
+      this.logger.debug(
+        `Failure count for ${this.serviceName} incremented to ${this.failureCount}`,
+      );
       if (this.failureCount >= this.circuitBreakerOptions.failureThreshold) {
         this.circuitState = 'open';
-        this.logger.warn(`Circuit breaker state changed to 'open' for ${this.serviceName} after ${this.failureCount} consecutive failures`);
+        this.logger.warn(
+          `Circuit breaker state changed to 'open' for ${this.serviceName} after ${this.failureCount} consecutive failures`,
+        );
       }
     }
-     // No change needed if already 'open'
+    // No change needed if already 'open'
   }
 
   /**
    * Abstract method to be implemented by subclasses for handling authentication.
    * This method should modify the provided headers object to add authentication details
    * (e.g., Authorization tokens). It's called once before the request attempts begin.
+   *
    * @param headers The headers object for the outgoing request.
    * @throws Error if authentication fails.
    */
-  protected abstract authenticate(headers: Record<string, string>): Promise<void>;
+  protected abstract authenticate(
+    headers: Record<string, string>,
+  ): Promise<void>;
 
   /**
    * Makes a request to the external API with configured timeout, retry, and circuit breaker logic.
@@ -203,7 +241,7 @@ export abstract class ExternalService extends AbstractService {
       timeout?: number;
       signal?: AbortSignal | null;
       traceContext?: TraceContext;
-    }
+    },
   ): Promise<T> {
     // 1. Initialize context and URL
     const contextLogger = options?.traceContext
@@ -218,33 +256,46 @@ export abstract class ExternalService extends AbstractService {
 
     // 2. Prepare Headers (including trace context)
     const headers: Record<string, string> = {
-      "Content-Type": "application/json", // Default, can be overridden
+      'Content-Type': 'application/json', // Default, can be overridden
       ...options?.headers,
     };
-    if (options?.traceContext?.["X-Cloud-Trace-Context"]) { // Prefer canonical header if present
-      headers["x-cloud-trace-context"] = options.traceContext["X-Cloud-Trace-Context"];
-    } else if (options?.traceContext?.["x-cloud-trace-context"]) { // Allow lowercase alternative
-        headers["x-cloud-trace-context"] = options.traceContext["x-cloud-trace-context"];
+    if (options?.traceContext?.['X-Cloud-Trace-Context']) {
+      // Prefer canonical header if present
+      headers['x-cloud-trace-context'] =
+        options.traceContext['X-Cloud-Trace-Context'];
+    } else if (options?.traceContext?.['x-cloud-trace-context']) {
+      // Allow lowercase alternative
+      headers['x-cloud-trace-context'] =
+        options.traceContext['x-cloud-trace-context'];
     }
-
 
     // 3. Check Circuit Breaker before attempting anything
     // Note: This throws if the circuit is open/half-open limit reached
     this.checkCircuitBreaker();
 
     // Increment half-open request counter *if* in that state and check passed
-    if (this.circuitBreakerOptions.enabled && this.circuitState === 'half-open') {
-        this.halfOpenRequests++;
-        contextLogger.debug(`Attempting request in half-open state (${this.halfOpenRequests}/${this.circuitBreakerOptions.halfOpenRequestThreshold})`);
+    if (
+      this.circuitBreakerOptions.enabled &&
+      this.circuitState === 'half-open'
+    ) {
+      this.halfOpenRequests++;
+      contextLogger.debug(
+        `Attempting request in half-open state (${this.halfOpenRequests}/${this.circuitBreakerOptions.halfOpenRequestThreshold})`,
+      );
     }
 
     // 4. Perform Authentication (once before retries)
     try {
       await this.authenticate(headers); // Modifies headers object directly
     } catch (authError: unknown) {
-      contextLogger.error({ error: authError instanceof Error ? authError.message : authError }, "Authentication failed before making request");
+      contextLogger.error(
+        { error: authError instanceof Error ? authError.message : authError },
+        'Authentication failed before making request',
+      );
       // Authentication failure is critical, don't register with circuit breaker, just fail fast.
-      throw authError instanceof Error ? authError : new Error('Authentication failed');
+      throw authError instanceof Error
+        ? authError
+        : new Error('Authentication failed');
     }
 
     // 5. Execute Request with Retries
@@ -257,27 +308,29 @@ export abstract class ExternalService extends AbstractService {
       const controller = new AbortController();
       const timeout = options?.timeout ?? this.defaultTimeout;
       const timeoutId = setTimeout(() => {
-          controller.abort(new Error(`Request timed out after ${timeout}ms`)); // Pass reason
+        controller.abort(new Error(`Request timed out after ${timeout}ms`)); // Pass reason
       }, timeout);
 
       // Combine external signal if provided
       const externalSignal = options?.signal;
-      const onExternalAbort = () => controller.abort(new Error('Request aborted by external signal'));
-      externalSignal?.addEventListener("abort", onExternalAbort);
+      const onExternalAbort = () =>
+        controller.abort(new Error('Request aborted by external signal'));
+      externalSignal?.addEventListener('abort', onExternalAbort);
 
       try {
         const fetchOptions: RequestInit = {
           method,
           headers,
           signal: controller.signal, // Use combined signal
-          body: (method !== "GET" && method !== "HEAD" && options?.data !== undefined)
-            ? JSON.stringify(options.data)
-            : null, // More strict body check
+          body:
+            method !== 'GET' && method !== 'HEAD' && options?.data !== undefined
+              ? JSON.stringify(options.data)
+              : null, // More strict body check
         };
 
         const response = await fetch(url.toString(), fetchOptions);
         clearTimeout(timeoutId); // Clear timeout timer
-        externalSignal?.removeEventListener("abort", onExternalAbort); // Clean up listener
+        externalSignal?.removeEventListener('abort', onExternalAbort); // Clean up listener
 
         const duration = Date.now() - startTime;
         contextLogger.debug(
@@ -287,78 +340,110 @@ export abstract class ExternalService extends AbstractService {
             status: response.status,
             duration,
             attempt,
-            circuitState: this.circuitBreakerOptions.enabled ? this.circuitState : 'disabled'
+            circuitState: this.circuitBreakerOptions.enabled
+              ? this.circuitState
+              : 'disabled',
           },
-          "External request attempt finished"
+          'External request attempt finished',
         );
 
         // Success Case
         if (response.ok) {
           this.registerSuccess(); // Inform circuit breaker of success
           try {
-             // Handle potential empty body for 204 No Content etc.
-             if (response.status === 204 || response.headers.get('content-length') === '0') {
-                return undefined as T; // Or handle as needed, maybe {} as T
-             }
-             const data = await response.json() as T;
-             return data;
+            // Handle potential empty body for 204 No Content etc.
+            if (
+              response.status === 204 ||
+              response.headers.get('content-length') === '0'
+            ) {
+              return undefined as T; // Or handle as needed, maybe {} as T
+            }
+            const data = (await response.json()) as T;
+            return data;
           } catch (parseError: unknown) {
-              contextLogger.error({ error: parseError instanceof Error ? parseError.message : parseError }, "Failed to parse JSON response");
-              // Treat JSON parsing error as a failure, but likely not retryable server-side
-              lastError = new ExternalServiceError("Failed to parse JSON response", { cause: parseError });
-              // Don't retry parsing errors usually
-              break; // Exit retry loop
+            contextLogger.error(
+              {
+                error:
+                  parseError instanceof Error ? parseError.message : parseError,
+              },
+              'Failed to parse JSON response',
+            );
+            // Treat JSON parsing error as a failure, but likely not retryable server-side
+            lastError = new ExternalServiceError(
+              'Failed to parse JSON response',
+              { cause: parseError },
+            );
+            // Don't retry parsing errors usually
+            break; // Exit retry loop
           }
         }
 
         // Handle HTTP Error Statuses
         const errorText = await response.text();
         lastError = this.isRetryable(response.status)
-          ? new RetryableError(errorText || `Request failed with status ${response.status}`, response.status)
-          : new ExternalServiceError(errorText || `Request failed with status ${response.status}`, { statusCode: response.status });
+          ? new RetryableError(
+              errorText || `Request failed with status ${response.status}`,
+              response.status,
+            )
+          : new ExternalServiceError(
+              errorText || `Request failed with status ${response.status}`,
+              { statusCode: response.status },
+            );
 
-        contextLogger.warn({
+        contextLogger.warn(
+          {
             status: response.status,
             attempt,
-            error: errorText.substring(0, 100) // Log snippet of error
-        }, `Request attempt failed with status ${response.status}`);
+            error: errorText.substring(0, 100), // Log snippet of error
+          },
+          `Request attempt failed with status ${response.status}`,
+        );
 
         // If not retryable or last attempt, break the loop to throw error
-        if (!(lastError instanceof RetryableError) || attempt > this.retryOptions.retries) {
+        if (
+          !(lastError instanceof RetryableError) ||
+          attempt > this.retryOptions.retries
+        ) {
           break;
         }
 
         // If retryable and more attempts left, proceed to delay/retry logic below
-
       } catch (error: unknown) {
         clearTimeout(timeoutId); // Clear timeout timer on any error
-        externalSignal?.removeEventListener("abort", onExternalAbort); // Clean up listener
+        externalSignal?.removeEventListener('abort', onExternalAbort); // Clean up listener
 
         // Handle fetch errors (network, CORS, AbortError etc.)
         if (error instanceof Error) {
-            lastError = error; // Store the error
-            contextLogger.warn(
-                { attempt, error: error.message, type: error.name },
-                `Request attempt failed with error`
-            );
-             // AbortError due to timeout or external signal is often retryable
-            if (error.name === "AbortError" && attempt <= this.retryOptions.retries) {
-                 // Proceed to delay/retry logic below
-            } else if (error instanceof RetryableError && attempt <= this.retryOptions.retries){
-                 // Already marked as retryable, proceed to delay/retry logic below
-            }
-             else {
-                // Non-retryable fetch error (e.g., DNS resolution) or AbortError on last attempt
-                break; // Exit retry loop
-            }
-        } else {
-            // Should not happen often, but handle non-Error throws
-            lastError = new ExternalServiceError(`An unknown error occurred: ${error}`);
-             contextLogger.error(
-                { attempt, error },
-                `Request attempt failed with unknown error type`
-            );
+          lastError = error; // Store the error
+          contextLogger.warn(
+            { attempt, error: error.message, type: error.name },
+            `Request attempt failed with error`,
+          );
+          // AbortError due to timeout or external signal is often retryable
+          if (
+            error.name === 'AbortError' &&
+            attempt <= this.retryOptions.retries
+          ) {
+            // Proceed to delay/retry logic below
+          } else if (
+            error instanceof RetryableError &&
+            attempt <= this.retryOptions.retries
+          ) {
+            // Already marked as retryable, proceed to delay/retry logic below
+          } else {
+            // Non-retryable fetch error (e.g., DNS resolution) or AbortError on last attempt
             break; // Exit retry loop
+          }
+        } else {
+          // Should not happen often, but handle non-Error throws
+          lastError = new ExternalServiceError(
+            `An unknown error occurred: ${error}`,
+          );
+          contextLogger.error(
+            { attempt, error },
+            `Request attempt failed with unknown error type`,
+          );
+          break; // Exit retry loop
         }
       }
 
@@ -368,52 +453,64 @@ export abstract class ExternalService extends AbstractService {
       const delay = this.calculateRetryDelay(attempt);
       contextLogger.info(
         { attempt, maxRetries: this.retryOptions.retries, delay },
-        `Scheduling retry after delay`
+        `Scheduling retry after delay`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       // Before next attempt, re-check circuit breaker in case it tripped during wait
-       try {
-           this.checkCircuitBreaker();
-       } catch (cbError) {
-           contextLogger.warn("Circuit breaker tripped during retry delay. Aborting retries.");
-           lastError = cbError instanceof Error ? cbError : new Error(String(cbError));
-           break; // Exit retry loop
-       }
-
+      try {
+        this.checkCircuitBreaker();
+      } catch (cbError) {
+        contextLogger.warn(
+          'Circuit breaker tripped during retry delay. Aborting retries.',
+        );
+        lastError =
+          cbError instanceof Error ? cbError : new Error(String(cbError));
+        break; // Exit retry loop
+      }
     } // End while loop
 
     // 6. Handle Final Outcome
     const finalDuration = Date.now() - startTime;
     if (lastError) {
-        // If we exited the loop with an error (retries exhausted or non-retryable)
-        this.registerFailure(); // Ensure failure is registered one last time
-        contextLogger.error(
-            {
-                method,
-                url: url.href,
-                error: lastError.message,
-                type: lastError.name,
-                status: (lastError as any).statusCode ?? (lastError as any).status ?? undefined, // Get status if available
-                attemptsMade: attempt,
-                totalDuration: finalDuration,
-                circuitState: this.circuitBreakerOptions.enabled ? this.circuitState : 'disabled'
-            },
-            "External request failed after all attempts or due to non-retryable error"
-        );
-        // Throw the specific error type captured
-        throw lastError;
+      // If we exited the loop with an error (retries exhausted or non-retryable)
+      this.registerFailure(); // Ensure failure is registered one last time
+      contextLogger.error(
+        {
+          method,
+          url: url.href,
+          error: lastError.message,
+          type: lastError.name,
+          status:
+            (lastError as any).statusCode ??
+            (lastError as any).status ??
+            undefined, // Get status if available
+          attemptsMade: attempt,
+          totalDuration: finalDuration,
+          circuitState: this.circuitBreakerOptions.enabled
+            ? this.circuitState
+            : 'disabled',
+        },
+        'External request failed after all attempts or due to non-retryable error',
+      );
+      // Throw the specific error type captured
+      throw lastError;
     } else {
-        // Should only happen if request succeeded on first try and logic is somehow bypassed - safeguard
-        const unexpectedError = new ExternalServiceError("Request loop completed without success or error capture.");
-        contextLogger.error("Unexpected state: request loop finished without result or error.");
-        throw unexpectedError;
+      // Should only happen if request succeeded on first try and logic is somehow bypassed - safeguard
+      const unexpectedError = new ExternalServiceError(
+        'Request loop completed without success or error capture.',
+      );
+      contextLogger.error(
+        'Unexpected state: request loop finished without result or error.',
+      );
+      throw unexpectedError;
     }
   }
 
   /**
    * Determines if an HTTP status code indicates a potentially temporary issue
    * that might be resolved by retrying the request.
+   *
    * @param statusCode The HTTP status code.
    * @returns True if the status code suggests a retry might succeed, false otherwise.
    */
@@ -425,6 +522,7 @@ export abstract class ExternalService extends AbstractService {
   /**
    * Calculates the delay for the next retry attempt using exponential backoff
    * with optional randomization (jitter).
+   *
    * @param attempt The current attempt number (starting from 1).
    * @returns The calculated delay in milliseconds.
    */
@@ -448,74 +546,108 @@ export abstract class ExternalService extends AbstractService {
    */
   public async withTransaction<T>(
     callback: (service: this) => Promise<T>,
-    options?: ServiceOptions // Keep options for potential future use or consistency
+    options?: ServiceOptions, // Keep options for potential future use or consistency
   ): Promise<T> {
-    this.logger.debug("Executing operation without transaction support (external service). Context: %j", options?.traceContext);
+    this.logger.debug(
+      'Executing operation without transaction support (external service). Context: %j',
+      options?.traceContext,
+    );
     // Simply execute the callback, passing the current service instance
     return callback(this);
   }
 
   // --- Convenience HTTP Method Wrappers ---
 
-  protected async get<T>(path: string, options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>): Promise<T> {
+  protected async get<T>(
+    path: string,
+    options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>,
+  ): Promise<T> {
     return this.request<T>('GET', path, options);
   }
 
-  protected async post<D = any, T = any>(path: string, data?: D, options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>): Promise<T> {
+  protected async post<D = any, T = any>(
+    path: string,
+    data?: D,
+    options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>,
+  ): Promise<T> {
     return this.request<T>('POST', path, { ...options, data });
   }
 
-  protected async put<D = any, T = any>(path: string, data?: D, options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>): Promise<T> {
+  protected async put<D = any, T = any>(
+    path: string,
+    data?: D,
+    options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>,
+  ): Promise<T> {
     return this.request<T>('PUT', path, { ...options, data });
   }
 
-  protected async patch<D = any, T = any>(path: string, data?: D, options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>): Promise<T> {
+  protected async patch<D = any, T = any>(
+    path: string,
+    data?: D,
+    options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>,
+  ): Promise<T> {
     return this.request<T>('PATCH', path, { ...options, data });
   }
 
-  protected async delete<T = any>(path: string, options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>): Promise<T> {
+  protected async delete<T = any>(
+    path: string,
+    options?: Omit<Parameters<typeof this.request>[2], 'data' | 'method'>,
+  ): Promise<T> {
     return this.request<T>('DELETE', path, options);
   }
 
   /**
    * Performs a basic health check by making a GET request to the specified path.
+   *
    * @param path The path to use for the health check (relative to baseUrl). Default: '/health'.
    * @param timeout Timeout for the health check request in milliseconds. Default: 5000.
    * @returns True if the request succeeds (status 2xx), false otherwise.
    */
-  public async healthCheck(path: string = '/health', timeout: number = 5000): Promise<boolean> {
-    this.logger.debug(`Performing health check on ${this.serviceName} at path '${path}'`);
+  public async healthCheck(
+    path: string = '/health',
+    timeout: number = 5000,
+  ): Promise<boolean> {
+    this.logger.debug(
+      `Performing health check on ${this.serviceName} at path '${path}'`,
+    );
     try {
       // Use GET for health check, bypass retries and circuit breaker for a quick check
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
-      const headers: Record<string,string> = {};
+      const headers: Record<string, string> = {};
       // Add minimal auth if needed, assuming health checks might require it
-       try {
-            await this.authenticate(headers);
-       } catch (authError) {
-            this.logger.warn({ error: authError instanceof Error ? authError.message : authError }, `Authentication failed during health check for ${this.serviceName}`);
-           // Decide if auth failure means unhealthy, likely yes
-           return false;
-       }
-
+      try {
+        await this.authenticate(headers);
+      } catch (authError) {
+        this.logger.warn(
+          { error: authError instanceof Error ? authError.message : authError },
+          `Authentication failed during health check for ${this.serviceName}`,
+        );
+        // Decide if auth failure means unhealthy, likely yes
+        return false;
+      }
 
       const response = await fetch(new URL(path, this.baseUrl).toString(), {
-          method: 'GET',
-          signal: controller.signal,
-          headers: headers // Pass potentially modified headers
+        method: 'GET',
+        signal: controller.signal,
+        headers: headers, // Pass potentially modified headers
       });
       clearTimeout(timeoutId);
-      this.logger.debug(`Health check for ${this.serviceName} completed with status ${response.status}`);
+      this.logger.debug(
+        `Health check for ${this.serviceName} completed with status ${response.status}`,
+      );
       return response.ok; // ok is true for status 200-299
     } catch (error: unknown) {
-      this.logger.warn(`Health check failed for ${this.serviceName} at path '${path}': ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Health check failed for ${this.serviceName} at path '${path}': ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     }
   }
 
   /**
    * Gets the current state and basic metrics of the circuit breaker.
+   *
    * @returns An object containing the circuit breaker's status.
    */
   public getCircuitBreakerStats(): {
@@ -532,7 +664,6 @@ export abstract class ExternalService extends AbstractService {
     };
   }
 }
-
 
 // --- GCPRunExternalService.ts ---
 
@@ -583,7 +714,7 @@ export class GCPRunExternalService extends ExternalService {
   protected readonly region: string;
   protected readonly gcpAudience: string;
   protected readonly authEnabled: boolean;
-  private readonly googleAuth: GoogleAuth; // Cache GoogleAuth instance
+  private readonly googleAuth: any; // Cache GoogleAuth instance
 
   /**
    * Creates a new instance of the GCP Cloud Run service client.
@@ -591,13 +722,12 @@ export class GCPRunExternalService extends ExternalService {
    * @param options Configuration options for connecting to the target Cloud Run service.
    * @param logger Optional pino logger instance.
    */
-  constructor(
-    options: GCPRunServiceOptions,
-    logger?: Logger
-  ) {
+  constructor(options: GCPRunServiceOptions, logger?: Logger) {
     // 1. Determine Project ID and Region
-    const projectId = options.projectId || process.env["GOOGLE_CLOUD_PROJECT"] || '';
-    const region = options.region || process.env["GOOGLE_CLOUD_REGION"] || 'us-central1'; // Default region
+    const projectId =
+      options.projectId || process.env['GOOGLE_CLOUD_PROJECT'] || '';
+    const region =
+      options.region || process.env['GOOGLE_CLOUD_REGION'] || 'us-central1'; // Default region
 
     // 2. Determine Base URL
     let baseUrl = options.baseUrl;
@@ -611,19 +741,25 @@ export class GCPRunExternalService extends ExternalService {
         // A more robust alternative requires calling metadata server or discovery APIs.
         // Fallback/alternative for potentially internal or regional URLs:
         // baseUrl = `https://${options.serviceName}.${region}.run.app`;
-         logger?.warn(`Constructed baseUrl ${baseUrl} from serviceName and projectId. Verify this is correct for your Cloud Run networking setup.`);
+        logger?.warn(
+          `Constructed baseUrl ${baseUrl} from serviceName and projectId. Verify this is correct for your Cloud Run networking setup.`,
+        );
       } else if (options.serviceName) {
-          // Attempt regional if only service name provided (less common, might be internal)
-          baseUrl = `https://${options.serviceName}.${region}.run.app`;
-          logger?.warn(`Constructed regional baseUrl ${baseUrl} from serviceName and region as projectId was missing. This might only work in specific network configurations.`);
+        // Attempt regional if only service name provided (less common, might be internal)
+        baseUrl = `https://${options.serviceName}.${region}.run.app`;
+        logger?.warn(
+          `Constructed regional baseUrl ${baseUrl} from serviceName and region as projectId was missing. This might only work in specific network configurations.`,
+        );
       } else {
-        throw new Error('Cannot initialize GCPRunExternalService: Either `baseUrl` or `serviceName` (with `projectId` preferred) must be provided in options.');
+        throw new Error(
+          'Cannot initialize GCPRunExternalService: Either `baseUrl` or `serviceName` (with `projectId` preferred) must be provided in options.',
+        );
       }
     }
 
-     // Ensure URL ends cleanly, remove trailing slash if present
+    // Ensure URL ends cleanly, remove trailing slash if present
     if (baseUrl.endsWith('/')) {
-        baseUrl = baseUrl.slice(0, -1);
+      baseUrl = baseUrl.slice(0, -1);
     }
 
     // 3. Determine Authentication Settings
@@ -631,18 +767,18 @@ export class GCPRunExternalService extends ExternalService {
     const audience = options.audience || baseUrl; // Default audience to the service URL
 
     // 4. Define Cloud Run Optimized Defaults (can be overridden by options)
-     const defaultRetryOptions: Required<RetryOptions> = {
-      retries: 5,       // More retries often helpful in cloud environments
-      factor: 1.5,      // Slightly less aggressive backoff
-      minTimeout: 500,  // Start faster
+    const defaultRetryOptions: Required<RetryOptions> = {
+      retries: 5, // More retries often helpful in cloud environments
+      factor: 1.5, // Slightly less aggressive backoff
+      minTimeout: 500, // Start faster
       maxTimeout: 10000,
       randomize: true,
     };
     const defaultCircuitBreakerOptions: Required<CircuitBreakerOptions> = {
-      enabled: true,   // Enable by default for resilience
+      enabled: true, // Enable by default for resilience
       failureThreshold: 5,
       resetTimeoutMs: 30000,
-      halfOpenRequestThreshold: 1
+      halfOpenRequestThreshold: 1,
     };
 
     // 5. Initialize the Base Class (ExternalService) - *ONCE*
@@ -653,7 +789,7 @@ export class GCPRunExternalService extends ExternalService {
       options.timeout ?? 15000, // Longer default timeout for potentially cold starts
       logger,
       { ...defaultRetryOptions, ...options.retryOptions }, // Merge user options over defaults
-      { ...defaultCircuitBreakerOptions, ...options.circuitBreakerOptions } // Merge user options over defaults
+      { ...defaultCircuitBreakerOptions, ...options.circuitBreakerOptions }, // Merge user options over defaults
     );
 
     // 6. Store GCP specific properties
@@ -662,20 +798,22 @@ export class GCPRunExternalService extends ExternalService {
     this.authEnabled = useAuth;
     this.gcpAudience = audience;
     if (this.authEnabled) {
-        this.googleAuth = new GoogleAuth({
-            // Scopes typically not needed for ID tokens, but could be added here if required.
-        });
+      this.googleAuth = new GoogleAuth({
+        // Scopes typically not needed for ID tokens, but could be added here if required.
+      });
     }
 
-
-    this.logger.info({
-      service: this.serviceName,
-      baseUrl: this.baseUrl, // Use the final baseUrl from super class
-      projectId: this.projectId || 'N/A',
-      region: this.region,
-      authenticated: this.authEnabled,
-      audience: this.authEnabled ? this.gcpAudience : 'N/A'
-    }, `GCP Cloud Run service client '${this.serviceName}' initialized`);
+    this.logger.info(
+      {
+        service: this.serviceName,
+        baseUrl: this.baseUrl, // Use the final baseUrl from super class
+        projectId: this.projectId || 'N/A',
+        region: this.region,
+        authenticated: this.authEnabled,
+        audience: this.authEnabled ? this.gcpAudience : 'N/A',
+      },
+      `GCP Cloud Run service client '${this.serviceName}' initialized`,
+    );
   }
 
   /**
@@ -687,43 +825,69 @@ export class GCPRunExternalService extends ExternalService {
    */
   protected async getGcpIdToken(): Promise<string> {
     if (!this.googleAuth) {
-         this.logger.error("GoogleAuth client not initialized. Cannot get ID token.");
-        throw new Error("GCP Authentication is enabled but GoogleAuth client failed to initialize.");
+      this.logger.error(
+        'GoogleAuth client not initialized. Cannot get ID token.',
+      );
+      throw new Error(
+        'GCP Authentication is enabled but GoogleAuth client failed to initialize.',
+      );
     }
     try {
       // getIdTokenClient is efficient and handles caching the token internally
       const client = await this.googleAuth.getIdTokenClient(this.gcpAudience);
       const headers = await client.getRequestHeaders();
-       if (!headers.Authorization) {
-            this.logger.error("getIdTokenClient succeeded but did not return an Authorization header.");
-            throw new Error("Failed to obtain GCP ID token: No Authorization header received.");
-       }
+      if (!headers.Authorization) {
+        this.logger.error(
+          'getIdTokenClient succeeded but did not return an Authorization header.',
+        );
+        throw new Error(
+          'Failed to obtain GCP ID token: No Authorization header received.',
+        );
+      }
       return headers.Authorization;
     } catch (error: unknown) {
-      this.logger.error({ error: error instanceof Error ? error.message : error, audience: this.gcpAudience }, "Failed to obtain GCP ID token");
-      throw new Error(`GCP ID token fetch failed for audience ${this.gcpAudience}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        {
+          error: error instanceof Error ? error.message : error,
+          audience: this.gcpAudience,
+        },
+        'Failed to obtain GCP ID token',
+      );
+      throw new Error(
+        `GCP ID token fetch failed for audience ${this.gcpAudience}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   /**
    * Overrides the base authentication method to inject the GCP ID token.
    * If authentication is disabled for this service, this method does nothing.
+   *
    * @param headers The headers object for the outgoing request.
    */
   override async authenticate(headers: Record<string, string>): Promise<void> {
     if (this.authEnabled) {
-      this.logger.debug(`Workspaceing GCP ID token for audience: ${this.gcpAudience}`);
+      this.logger.debug(
+        `Workspaceing GCP ID token for audience: ${this.gcpAudience}`,
+      );
       try {
         const token = await this.getGcpIdToken();
         headers['Authorization'] = token; // Add or replace Authorization header
       } catch (error) {
         // Error is already logged in getGcpIdToken
-        this.logger.error(`Failed to authenticate request to ${this.serviceName} due to ID token error.`);
+        this.logger.error(
+          `Failed to authenticate request to ${this.serviceName} due to ID token error.`,
+        );
         // Re-throw as an ExternalServiceError or similar to indicate auth phase failure
-        throw new ExternalServiceError("GCP authentication failed: Could not obtain ID token.", { cause: error });
+        throw new ExternalServiceError(
+          'GCP authentication failed: Could not obtain ID token.',
+          { cause: error },
+        );
       }
     } else {
-        this.logger.debug(`GCP authentication skipped for ${this.serviceName} as it's disabled.`);
+      this.logger.debug(
+        `GCP authentication skipped for ${this.serviceName} as it's disabled.`,
+      );
     }
   }
 
@@ -741,7 +905,7 @@ export class GCPRunExternalService extends ExternalService {
       timeout?: number;
       signal?: AbortSignal | null;
       traceContext?: TraceContext;
-    }
+    },
   ): Promise<T> {
     const headers = options?.headers || {};
 
@@ -757,10 +921,9 @@ export class GCPRunExternalService extends ExternalService {
     // 3. Call the base class request method with potentially modified headers
     return super.request<T>(method, path, {
       ...options,
-      headers // Pass the potentially updated headers object
+      headers, // Pass the potentially updated headers object
     });
   }
-
 
   /**
    * Generates a simple unique request ID.
@@ -788,7 +951,7 @@ export class GCPRunExternalService extends ExternalService {
       projectId: this.projectId,
       region: this.region,
       authenticated: this.authEnabled,
-      audience: this.authEnabled ? this.gcpAudience : null
+      audience: this.authEnabled ? this.gcpAudience : null,
     };
   }
 
@@ -809,22 +972,36 @@ export class GCPRunExternalService extends ExternalService {
    * @param timeout Timeout for each health check attempt. Default: 5000ms.
    * @returns True if either health check endpoint returns a successful status (2xx), false otherwise.
    */
-  public async checkHealth(primaryPath: string = '/_ah/health', fallbackPath: string = '/', timeout: number = 5000): Promise<boolean> {
-    this.logger.info(`Performing Cloud Run health check for ${this.serviceName} using ${primaryPath}`);
+  public async checkHealth(
+    primaryPath: string = '/_ah/health',
+    fallbackPath: string = '/',
+    timeout: number = 5000,
+  ): Promise<boolean> {
+    this.logger.info(
+      `Performing Cloud Run health check for ${this.serviceName} using ${primaryPath}`,
+    );
     const primaryCheckOk = await this.healthCheck(primaryPath, timeout);
 
     if (primaryCheckOk) {
-      this.logger.info(`Health check successful for ${this.serviceName} on ${primaryPath}`);
+      this.logger.info(
+        `Health check successful for ${this.serviceName} on ${primaryPath}`,
+      );
       return true;
     } else {
-      this.logger.warn(`Health check failed or timed out on ${primaryPath} for ${this.serviceName}, trying fallback path ${fallbackPath}`);
+      this.logger.warn(
+        `Health check failed or timed out on ${primaryPath} for ${this.serviceName}, trying fallback path ${fallbackPath}`,
+      );
       const fallbackCheckOk = await this.healthCheck(fallbackPath, timeout);
       if (fallbackCheckOk) {
-         this.logger.info(`Health check successful for ${this.serviceName} on fallback path ${fallbackPath}`);
-         return true;
+        this.logger.info(
+          `Health check successful for ${this.serviceName} on fallback path ${fallbackPath}`,
+        );
+        return true;
       } else {
-          this.logger.error(`Health check failed for ${this.serviceName} on both ${primaryPath} and ${fallbackPath}`);
-          return false;
+        this.logger.error(
+          `Health check failed for ${this.serviceName} on both ${primaryPath} and ${fallbackPath}`,
+        );
+        return false;
       }
     }
   }
@@ -839,7 +1016,7 @@ export class GCPRunExternalService extends ExternalService {
  */
 export function createCloudRunService(
   options: GCPRunServiceOptions,
-  logger?: Logger
+  logger?: Logger,
 ): GCPRunExternalService {
   return new GCPRunExternalService(options, logger);
 }

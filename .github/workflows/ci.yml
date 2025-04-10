@@ -353,11 +353,13 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           # Use primary image tag generated in build job
-          image: ${{ needs.build.outputs.primary_image }}
-           # Service name convention (matches repo name for prod)
+          image:
+            ${{ needs.build.outputs.primary_image }}
+            # Service name convention (matches repo name for prod)
           service: ${{ github.event.repository.name }}
-          region: ${{ env.GCP_REGION }}
-           # Note: Review --allow-unauthenticated. Consider adding --service-account=<runtime-sa-email>
+          region:
+            ${{ env.GCP_REGION }}
+            # Note: Review --allow-unauthenticated. Consider adding --service-account=<runtime-sa-email>
           flags: >-
             --allow-unauthenticated
             --port=3000
@@ -373,7 +375,7 @@ jobs:
       - name: Tag successful deployment in Git
         if: success() && github.ref_name == 'main' # Only tag pushes to main branch
         env:
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Or a PAT
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Or a PAT
         run: |
           DEPLOY_TAG="deploy-prod-$(date +'%Y%m%d-%H%M%S')-${{ github.sha }}"
           echo "Creating git tag: $DEPLOY_TAG"
@@ -444,4 +446,4 @@ jobs:
           SLACK_COLOR: ${{ steps.status.outputs.status == 'success' && 'good' || 'danger' }}
           SLACK_TITLE: ${{ steps.status.outputs.title }}
           SLACK_MESSAGE: ${{ steps.status.outputs.details }}
-          SLACK_FOOTER: "GitHub Actions CI/CD"
+          SLACK_FOOTER: 'GitHub Actions CI/CD'

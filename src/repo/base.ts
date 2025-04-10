@@ -1,15 +1,21 @@
+import { ValidationError } from '@/errors/validation-errors.js';
+import { ValidationResult } from '@/libs/validation.js';
+
+import {
+  DatabaseError,
+  RecordNotFoundError,
+  UniqueConstraintError,
+} from '../errors/database-errors.js';
 import { createChildLogger } from '../libs/logger.js';
-import type { Logger } from 'pino';
+import prisma from '../libs/prisma.js';
+
 import type {
-  Prisma,
   PrismaClient,
   // Example: If you have a PrismaClient, import it here
   // PrismaClient
 } from '@prisma/client';
-import prisma  from '../libs/prisma.js';
-import { DatabaseError, RecordNotFoundError, UniqueConstraintError } from '../errors/database-errors.js';
-import { ValidationError } from '@/errors/validation-errors.js';
-import { ValidationResult } from '@/libs/validation.ts';
+import type { Logger } from 'pino';
+
 /**
  * Configuration for soft delete behavior
  */
@@ -19,7 +25,6 @@ export interface SoftDeleteConfig {
   /** Whether the model has a nullable "deletedAt" date field */
   useDeletedAt: boolean;
 }
-
 
 /**
  * Configuration for tracking and auditing
@@ -36,24 +41,24 @@ export interface TrackingConfig {
 /**
  * Operation hook types
  */
-export type OperationName = 
-  | 'create' 
-  | 'createMany' 
-  | 'update' 
-  | 'updateMany' 
-  | 'softDelete' 
-  | 'softDeleteMany' 
-  | 'hardDelete' 
-  | 'hardDeleteMany' 
-  | 'findOne' 
-  | 'findAll' 
-  | 'findByUnique' 
-  | 'count' 
-  | 'exists' 
-  | 'upsert' 
-  | 'upsertCreate' 
-  | 'upsertUpdate' 
-  | 'restore' 
+export type OperationName =
+  | 'create'
+  | 'createMany'
+  | 'update'
+  | 'updateMany'
+  | 'softDelete'
+  | 'softDeleteMany'
+  | 'hardDelete'
+  | 'hardDeleteMany'
+  | 'findOne'
+  | 'findAll'
+  | 'findByUnique'
+  | 'count'
+  | 'exists'
+  | 'upsert'
+  | 'upsertCreate'
+  | 'upsertUpdate'
+  | 'restore'
   | 'restoreMany';
 
 export type PreHook<T = any> = (data: T) => Promise<T> | T;
@@ -74,14 +79,15 @@ export interface OffsetPaginationOptions extends BasePaginationOptions {
   pageSize?: number;
 }
 
-export interface CursorPaginationOptions<TCursor> extends BasePaginationOptions {
+export interface CursorPaginationOptions<TCursor>
+  extends BasePaginationOptions {
   strategy: 'cursor';
   cursor?: TCursor;
   take?: number;
 }
 
-export type PaginationOptions<TCursor = any> = 
-  | OffsetPaginationOptions 
+export type PaginationOptions<TCursor = any> =
+  | OffsetPaginationOptions
   | CursorPaginationOptions<TCursor>;
 
 export interface QueryOptions<TOrderBy, TSelect, TInclude> {
@@ -90,7 +96,6 @@ export interface QueryOptions<TOrderBy, TSelect, TInclude> {
   select?: TSelect;
   include?: TInclude;
 }
-
 
 export interface IBaseModel {
   id: number;
@@ -107,7 +112,7 @@ async function executeDbOperation<T>(
   operation: () => Promise<T>,
   operationName: string,
   logger: Logger,
-  context?: Record<string, any>
+  context?: Record<string, any>,
 ): Promise<T> {
   try {
     logger.debug(`Executing operation: ${operationName}`);
@@ -124,29 +129,24 @@ async function executeDbOperation<T>(
       code: error?.code,
       ...(context && { context }),
     });
-    
+
     // Map Prisma errors to our custom error types
     if (error?.code === 'P2025') {
       // Record not found
-      throw new RecordNotFoundError(
-        operationName.split('.')[0],
-        error,
-      );
+      throw new RecordNotFoundError(operationName.split('.')[0], error);
     } else if (error?.code === 'P2002') {
       // Unique constraint violation
       const field = error.meta?.target?.[0] || 'unknown';
-      throw new UniqueConstraintError(
-        operationName.split('.')[0],
-        error,
-        { field }
-      );
+      throw new UniqueConstraintError(operationName.split('.')[0], error, {
+        field,
+      });
     }
-    
+
     // Generic database error
     throw new DatabaseError(
       `Failed to execute ${operationName}${error?.code ? ` (Code: ${error.code})` : ''}`,
       error,
-      context
+      context,
     );
   }
 }
@@ -160,7 +160,7 @@ export class RepositoryQueryBuilder<
   TWhere,
   TOrderBy,
   TSelect,
-  TInclude
+  TInclude,
 > {
   private whereConditions: TWhere;
   private selectFields?: TSelect;
@@ -169,11 +169,11 @@ export class RepositoryQueryBuilder<
   private limitValue?: number;
   private skipValue?: number;
   private cursorValue?: any;
-  
+
   constructor(private readonly repository: TRepo) {
     this.whereConditions = {} as TWhere;
   }
-  
+
   /**
    * Add where conditions (combined with AND)
    */
@@ -184,7 +184,7 @@ export class RepositoryQueryBuilder<
     } as TWhere;
     return this;
   }
-  
+
   /**
    * Add fields to select
    */
@@ -192,7 +192,7 @@ export class RepositoryQueryBuilder<
     this.selectFields = fields;
     return this;
   }
-  
+
   /**
    * Add relations to include
    */
@@ -200,7 +200,7 @@ export class RepositoryQueryBuilder<
     this.includeRelations = relations;
     return this;
   }
-  
+
   /**
    * Add ordering
    */
@@ -208,7 +208,7 @@ export class RepositoryQueryBuilder<
     this.orderByFields = fields;
     return this;
   }
-  
+
   /**
    * Set result limit
    */
@@ -216,7 +216,7 @@ export class RepositoryQueryBuilder<
     this.limitValue = limit;
     return this;
   }
-  
+
   /**
    * Set number of results to skip
    */
@@ -224,7 +224,7 @@ export class RepositoryQueryBuilder<
     this.skipValue = count;
     return this;
   }
-  
+
   /**
    * Set cursor for pagination
    */
@@ -232,7 +232,7 @@ export class RepositoryQueryBuilder<
     this.cursorValue = cursor;
     return this;
   }
-  
+
   /**
    * Include only non-deleted records (applied by default)
    */
@@ -244,7 +244,7 @@ export class RepositoryQueryBuilder<
     } as TWhere;
     return this;
   }
-  
+
   /**
    * Include only deleted records
    */
@@ -256,7 +256,7 @@ export class RepositoryQueryBuilder<
     } as TWhere;
     return this;
   }
-  
+
   /**
    * Include all records (both active and deleted)
    */
@@ -272,47 +272,50 @@ export class RepositoryQueryBuilder<
     this.whereConditions = whereWithoutDeletedFilters as TWhere;
     return this;
   }
-  
+
   /**
    * Execute the query and return first matching record
    */
   async findFirst(): Promise<TModel | null> {
-    return this.repository.findOne(
-      this.whereConditions,
-      {
-        orderBy: this.orderByFields,
-        select: this.selectFields,
-        include: this.includeRelations,
-      }
-    );
+    return this.repository.findOne(this.whereConditions, {
+      orderBy: this.orderByFields,
+      select: this.selectFields,
+      include: this.includeRelations,
+    });
   }
-  
+
   /**
    * Execute the query and return all matching records
    */
-  async findAll(): Promise<{ data: TModel[]; total: number; hasMore?: boolean; pageInfo?: any }> {
-    return this.repository.findAll(
-      this.whereConditions,
-      {
-        pagination: this.limitValue ? {
-          strategy: 'offset',
-          page: this.skipValue ? Math.floor(this.skipValue / this.limitValue) + 1 : 1,
-          pageSize: this.limitValue
-        } : undefined,
-        orderBy: this.orderByFields,
-        select: this.selectFields,
-        include: this.includeRelations,
-      }
-    );
+  async findAll(): Promise<{
+    data: TModel[];
+    total: number;
+    hasMore?: boolean;
+    pageInfo?: any;
+  }> {
+    return this.repository.findAll(this.whereConditions, {
+      pagination: this.limitValue
+        ? {
+            strategy: 'offset',
+            page: this.skipValue
+              ? Math.floor(this.skipValue / this.limitValue) + 1
+              : 1,
+            pageSize: this.limitValue,
+          }
+        : undefined,
+      orderBy: this.orderByFields,
+      select: this.selectFields,
+      include: this.includeRelations,
+    });
   }
-  
+
   /**
    * Execute the query and return the count of matching records
    */
   async count(): Promise<number> {
     return this.repository.count(this.whereConditions);
   }
-  
+
   /**
    * Check if any matching records exist
    */
@@ -329,6 +332,7 @@ export class RepositoryFactory {
 
   /**
    * Create a new repository instance for a Prisma model
+   *
    * @param modelName Name of the model (should match the Prisma model name)
    * @param softDeleteConfig Optional configuration for soft delete behavior
    * @param trackingConfig Optional configuration for tracking and auditing
@@ -345,7 +349,7 @@ export class RepositoryFactory {
   >(
     modelName: string,
     softDeleteConfig?: Partial<SoftDeleteConfig>,
-    trackingConfig?: Partial<TrackingConfig>
+    trackingConfig?: Partial<TrackingConfig>,
   ): BaseRepository<
     TModel,
     any, // TDelegate type - we can't easily infer this
@@ -359,11 +363,11 @@ export class RepositoryFactory {
   > {
     // Get the model delegate from the Prisma client
     const delegate = (this.prisma as any)[modelName.toLowerCase()];
-    
+
     if (!delegate) {
       throw new Error(`Model ${modelName} not found in Prisma client`);
     }
-    
+
     return new BaseRepository<
       TModel,
       any,
@@ -430,7 +434,7 @@ export class BaseRepository<
     protected readonly prisma: PrismaClient,
     softDeleteConfig?: Partial<SoftDeleteConfig>,
     trackingConfig?: Partial<TrackingConfig>,
-    auditLogger?: Logger
+    auditLogger?: Logger,
   ) {
     this.logger = createChildLogger({ module: `Repository:${modelName}` });
 
@@ -455,15 +459,15 @@ export class BaseRepository<
    */
   protected getDeletedFilter(): Partial<TWhere> {
     const filter = {} as Partial<TWhere>;
-    
+
     if (this.softDeleteConfig.useDeletedAt) {
       (filter as any).deletedAt = { not: null };
     }
-    
+
     if (this.softDeleteConfig.useDeletedFlag) {
       (filter as any).deleted = true;
     }
-    
+
     return filter;
   }
 
@@ -472,15 +476,15 @@ export class BaseRepository<
    */
   protected getNotDeletedFilter(): Partial<TWhere> {
     const filter = {} as Partial<TWhere>;
-    
+
     if (this.softDeleteConfig.useDeletedAt) {
       (filter as any).deletedAt = null;
     }
-    
+
     if (this.softDeleteConfig.useDeletedFlag) {
       (filter as any).deleted = false;
     }
-    
+
     return filter;
   }
 
@@ -538,15 +542,14 @@ export class BaseRepository<
 
   /**
    * Executes multiple repository operations in a single transaction
+   *
    * @param callback Function that receives transactional repository and executes operations
    */
-  async withTransaction<T>(
-    callback: (repo: this) => Promise<T>
-  ): Promise<T> {
+  async withTransaction<T>(callback: (repo: this) => Promise<T>): Promise<T> {
     if (!this.prisma) {
       throw new Error('Prisma client not provided to repository');
     }
-    
+
     return this.prisma.$transaction(async (tx: any) => {
       // Create a transactional version of this repository
       const transactionalRepo = this.createTransactionalRepo(tx);
@@ -556,17 +559,18 @@ export class BaseRepository<
 
   /**
    * Creates a new instance of this repository that uses the transaction
+   *
    * @param tx Prisma transaction object
    */
   protected createTransactionalRepo(tx: any): this {
     // Create a new repository instance with the transaction context
     // This assumes your models are accessible via prisma client as tx.user, tx.post, etc.
     const txModel = tx[this.modelName.toLowerCase()];
-    
+
     if (!txModel) {
       throw new Error(`Transaction model not found for ${this.modelName}`);
     }
-    
+
     // @ts-ignore - We're creating a new instance with the transaction model
     return new (this.constructor as any)(
       txModel,
@@ -574,7 +578,7 @@ export class BaseRepository<
       this.softDeleteConfig,
       tx,
       this.trackingConfig,
-      this.auditLogger
+      this.auditLogger,
     );
   }
 
@@ -582,14 +586,14 @@ export class BaseRepository<
    * Tracks method execution for metrics and auditing
    */
   protected async trackExecution<T>(
-    operationName: string, 
+    operationName: string,
     executeFunc: () => Promise<T>,
-    data?: any
+    data?: any,
   ): Promise<T> {
     const startTime = Date.now();
     let result: T;
     let error: Error | null = null;
-    
+
     try {
       result = await executeFunc();
       return result;
@@ -598,20 +602,25 @@ export class BaseRepository<
       throw e;
     } finally {
       const duration = Date.now() - startTime;
-      
+
       // Performance tracking
       if (this.trackingConfig.trackPerformance) {
         if (duration > this.trackingConfig.slowOperationThreshold) {
-          this.logger.warn(`Slow operation detected: ${operationName} took ${duration}ms`, {
-            operationName,
-            duration,
-            slowThreshold: this.trackingConfig.slowOperationThreshold,
-          });
+          this.logger.warn(
+            `Slow operation detected: ${operationName} took ${duration}ms`,
+            {
+              operationName,
+              duration,
+              slowThreshold: this.trackingConfig.slowOperationThreshold,
+            },
+          );
         } else {
-          this.logger.debug(`Operation ${operationName} completed in ${duration}ms`);
+          this.logger.debug(
+            `Operation ${operationName} completed in ${duration}ms`,
+          );
         }
       }
-      
+
       // Audit logging
       if (this.trackingConfig.trackAuditing) {
         this.auditLogger.info(`Repository operation: ${operationName}`, {
@@ -620,7 +629,7 @@ export class BaseRepository<
           duration,
           success: !error,
           error: error?.message,
-          ...data && { data },
+          ...(data && { data }),
         });
       }
     }
@@ -636,7 +645,7 @@ export class BaseRepository<
     }
     this.preHooks[operationName].push(hook as PreHook);
   }
-  
+
   registerPostHook<D>(operationName: string, hook: PostHook<D>): void {
     if (!this.postHooks[operationName]) {
       this.postHooks[operationName] = [];
@@ -646,13 +655,16 @@ export class BaseRepository<
 
   // Add validation-specific hooks
   registerValidationHook<D>(
-    operationName: string, 
-    validator: (data: D) => Promise<ValidationResult>
+    operationName: string,
+    validator: (data: D) => Promise<ValidationResult>,
   ): void {
     this.registerPreHook<D>(operationName, async (data) => {
       const result = await validator(data);
       if (!result.valid) {
-        throw new ValidationError(`Validation failed for ${operationName}`, result.errors);
+        throw new ValidationError(
+          `Validation failed for ${operationName}`,
+          result.errors,
+        );
       }
       return data;
     });
@@ -668,7 +680,10 @@ export class BaseRepository<
     return result;
   }
 
-  private async executePostHooks<R>(operationName: string, result: R): Promise<R> {
+  private async executePostHooks<R>(
+    operationName: string,
+    result: R,
+  ): Promise<R> {
     let finalResult = result;
     if (this.postHooks[operationName]) {
       for (const hook of this.postHooks[operationName]) {
@@ -692,10 +707,13 @@ export class BaseRepository<
     options?: {
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel | null> {
     const operationName = 'findByUnique';
-    const processedOptions = await this.executePreHooks(operationName, options ?? {});
+    const processedOptions = await this.executePreHooks(
+      operationName,
+      options ?? {},
+    );
 
     return this.trackExecution(
       operationName,
@@ -704,15 +722,16 @@ export class BaseRepository<
           () =>
             this.model.findUnique({
               where,
-              ...((processedOptions.select || processedOptions.include) && processedOptions),
+              ...((processedOptions.select || processedOptions.include) &&
+                processedOptions),
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where }
+          { where },
         );
         return this.executePostHooks(operationName, result);
       },
-      { where }
+      { where },
     );
   }
 
@@ -734,7 +753,7 @@ export class BaseRepository<
    */
   async findAll<TCursor = TWhereUnique>(
     where: TWhere = {} as TWhere,
-    options?: QueryOptions<TOrderBy, TSelect, TInclude>
+    options?: QueryOptions<TOrderBy, TSelect, TInclude>,
   ): Promise<{
     data: TModel[];
     total: number;
@@ -748,9 +767,15 @@ export class BaseRepository<
     };
   }> {
     const operationName = 'findAll';
-    const processedWhere = await this.executePreHooks(`${operationName}Where`, where);
-    const processedOptions = await this.executePreHooks(operationName, options ?? {});
-    
+    const processedWhere = await this.executePreHooks(
+      `${operationName}Where`,
+      where,
+    );
+    const processedOptions = await this.executePreHooks(
+      operationName,
+      options ?? {},
+    );
+
     return this.trackExecution(
       operationName,
       async () => {
@@ -759,13 +784,20 @@ export class BaseRepository<
         };
 
         // Add orderBy, select, include if provided
-        if (processedOptions.orderBy) findManyArgs.orderBy = processedOptions.orderBy;
-        if (processedOptions.select) findManyArgs.select = processedOptions.select;
-        if (processedOptions.include) findManyArgs.include = processedOptions.include;
-        
+        if (processedOptions.orderBy)
+          findManyArgs.orderBy = processedOptions.orderBy;
+        if (processedOptions.select)
+          findManyArgs.select = processedOptions.select;
+        if (processedOptions.include)
+          findManyArgs.include = processedOptions.include;
+
         // Handle different pagination strategies
-        const pagination = processedOptions.pagination || { strategy: 'offset', page: 1, pageSize: 10 };
-        
+        const pagination = processedOptions.pagination || {
+          strategy: 'offset',
+          page: 1,
+          pageSize: 10,
+        };
+
         if (pagination.strategy === 'cursor' && 'cursor' in pagination) {
           // Cursor-based pagination
           if (pagination.cursor) findManyArgs.cursor = pagination.cursor;
@@ -779,16 +811,17 @@ export class BaseRepository<
           findManyArgs.skip = (page - 1) * pageSize;
           findManyArgs.take = pageSize;
         }
-        
+
         // Execute the query
         const [rawData, total] = await executeDbOperation(
-          () => Promise.all([
-            this.model.findMany(findManyArgs),
-            this.model.count({ where: processedWhere }),
-          ]),
+          () =>
+            Promise.all([
+              this.model.findMany(findManyArgs),
+              this.model.count({ where: processedWhere }),
+            ]),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where: processedWhere, options: findManyArgs }
+          { where: processedWhere, options: findManyArgs },
         );
 
         // Process pagination results
@@ -796,11 +829,11 @@ export class BaseRepository<
         let hasMore = false;
         let nextCursor: any = undefined;
         let pageInfo: any = undefined;
-        
+
         if (pagination.strategy === 'cursor' && 'take' in pagination) {
           const take = pagination.take || 10;
           hasMore = data.length > take;
-          
+
           // If we have more results than requested, remove the extra one and set the next cursor
           if (hasMore) {
             data = data.slice(0, take);
@@ -810,7 +843,7 @@ export class BaseRepository<
           const page = pagination.page || 1;
           const pageSize = pagination.pageSize || 10;
           const totalPages = Math.ceil(total / pageSize);
-          
+
           pageInfo = {
             currentPage: page,
             totalPages,
@@ -818,7 +851,7 @@ export class BaseRepository<
             hasPreviousPage: page > 1,
           };
         }
-        
+
         const result = {
           data,
           total,
@@ -826,10 +859,10 @@ export class BaseRepository<
           ...(nextCursor !== undefined && { nextCursor }),
           ...(pageInfo !== undefined && { pageInfo }),
         };
-        
+
         return this.executePostHooks(operationName, result);
       },
-      { where: processedWhere, options: processedOptions }
+      { where: processedWhere, options: processedOptions },
     );
   }
 
@@ -842,12 +875,18 @@ export class BaseRepository<
       orderBy?: TOrderBy | TOrderBy[];
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel | null> {
     const operationName = 'findOne';
 
-    const processedWhere = await this.executePreHooks(`${operationName}Where`, where);
-    const processedOptions = await this.executePreHooks(operationName, options ?? {});
+    const processedWhere = await this.executePreHooks(
+      `${operationName}Where`,
+      where,
+    );
+    const processedOptions = await this.executePreHooks(
+      operationName,
+      options ?? {},
+    );
 
     return this.trackExecution(
       operationName,
@@ -856,17 +895,19 @@ export class BaseRepository<
           () =>
             this.model.findFirst({
               where: processedWhere,
-              ...((processedOptions.orderBy || processedOptions.select || processedOptions.include) &&
+              ...((processedOptions.orderBy ||
+                processedOptions.select ||
+                processedOptions.include) &&
                 processedOptions),
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where: processedWhere }
+          { where: processedWhere },
         );
 
         return this.executePostHooks(operationName, result);
       },
-      { where: processedWhere }
+      { where: processedWhere },
     );
   }
 
@@ -878,7 +919,7 @@ export class BaseRepository<
     options?: {
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel> {
     const operationName = 'create';
 
@@ -893,7 +934,10 @@ export class BaseRepository<
       initialData.deletedAt = null;
     }
 
-    const processedData = await this.executePreHooks(operationName, initialData);
+    const processedData = await this.executePreHooks(
+      operationName,
+      initialData,
+    );
 
     return this.trackExecution(
       operationName,
@@ -906,11 +950,11 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { data: processedData }
+          { data: processedData },
         );
         return this.executePostHooks(operationName, result);
       },
-      { data: processedData }
+      { data: processedData },
     );
   }
 
@@ -922,7 +966,7 @@ export class BaseRepository<
     data: TCreate[],
     options?: {
       skipDuplicates?: boolean;
-    }
+    },
   ): Promise<number> {
     const operationName = 'createMany';
 
@@ -937,7 +981,10 @@ export class BaseRepository<
       return d;
     });
 
-    const processedDataArray = await this.executePreHooks(operationName, initialDataArray);
+    const processedDataArray = await this.executePreHooks(
+      operationName,
+      initialDataArray,
+    );
 
     return this.trackExecution(
       operationName,
@@ -950,14 +997,16 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { dataCount: processedDataArray.length }
+          { dataCount: processedDataArray.length },
         );
 
         // Call post-hooks with `{ count: number }`
-        const finalResult = await this.executePostHooks(operationName, { count: result.count });
+        const finalResult = await this.executePostHooks(operationName, {
+          count: result.count,
+        });
         return finalResult.count;
       },
-      { dataCount: processedDataArray.length }
+      { dataCount: processedDataArray.length },
     );
   }
 
@@ -970,7 +1019,7 @@ export class BaseRepository<
     options?: {
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel> {
     const operationName = 'update';
 
@@ -988,12 +1037,12 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where, data: processedData }
+          { where, data: processedData },
         );
 
         return this.executePostHooks(operationName, result);
       },
-      { where, data: processedData }
+      { where, data: processedData },
     );
   }
 
@@ -1004,7 +1053,10 @@ export class BaseRepository<
   async updateMany(where: TWhere, data: TUpdate): Promise<number> {
     const operationName = 'updateMany';
 
-    const processedWhere = await this.executePreHooks(`${operationName}Where`, where);
+    const processedWhere = await this.executePreHooks(
+      `${operationName}Where`,
+      where,
+    );
     const processedData = await this.executePreHooks(operationName, data);
 
     return this.trackExecution(
@@ -1018,18 +1070,21 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where: processedWhere, data: processedData }
+          { where: processedWhere, data: processedData },
         );
 
-        const finalResult = await this.executePostHooks(operationName, { count: result.count });
+        const finalResult = await this.executePostHooks(operationName, {
+          count: result.count,
+        });
         return finalResult.count;
       },
-      { where: processedWhere, data: processedData }
+      { where: processedWhere, data: processedData },
     );
   }
 
   /**
    * Connect relations to an entity (useful for many-to-many relationships)
+   *
    * @param id The ID of the record to connect relations to
    * @param relationField The name of the relation field
    * @param relationIds IDs of the related records to connect
@@ -1037,41 +1092,45 @@ export class BaseRepository<
   async connectRelations<TId = string | number>(
     id: TId,
     relationField: string,
-    relationIds: TId[]
+    relationIds: TId[],
   ): Promise<TModel> {
     const operationName = 'connectRelations';
-    
+
     // Handle empty array case
     if (!relationIds.length) {
-      return this.findByUnique({ id } as any as TWhereUnique) as Promise<TModel>;
+      return this.findByUnique({
+        id,
+      } as any as TWhereUnique) as Promise<TModel>;
     }
-    
+
     // Create connection payload
     const connectionData: any = {
       [relationField]: {
-        connect: relationIds.map(relId => ({ id: relId })),
+        connect: relationIds.map((relId) => ({ id: relId })),
       },
     };
-    
+
     return this.trackExecution(
       operationName,
       async () => {
         return executeDbOperation(
-          () => this.model.update({
-            where: { id } as any,
-            data: connectionData,
-          }),
+          () =>
+            this.model.update({
+              where: { id } as any,
+              data: connectionData,
+            }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { id, relationField, relationIds }
+          { id, relationField, relationIds },
         );
       },
-      { id, relationField, relationIds }
+      { id, relationField, relationIds },
     );
   }
 
   /**
    * Disconnect relations from an entity (useful for many-to-many relationships)
+   *
    * @param id The ID of the record to disconnect relations from
    * @param relationField The name of the relation field
    * @param relationIds IDs of the related records to disconnect
@@ -1079,41 +1138,45 @@ export class BaseRepository<
   async disconnectRelations<TId = string | number>(
     id: TId,
     relationField: string,
-    relationIds: TId[]
+    relationIds: TId[],
   ): Promise<TModel> {
     const operationName = 'disconnectRelations';
-    
+
     // Handle empty array case
     if (!relationIds.length) {
-      return this.findByUnique({ id } as any as TWhereUnique) as Promise<TModel>;
+      return this.findByUnique({
+        id,
+      } as any as TWhereUnique) as Promise<TModel>;
     }
-    
+
     // Create disconnection payload
     const disconnectionData: any = {
       [relationField]: {
-        disconnect: relationIds.map(relId => ({ id: relId })),
+        disconnect: relationIds.map((relId) => ({ id: relId })),
       },
     };
-    
+
     return this.trackExecution(
       operationName,
       async () => {
         return executeDbOperation(
-          () => this.model.update({
-            where: { id } as any,
-            data: disconnectionData,
-          }),
+          () =>
+            this.model.update({
+              where: { id } as any,
+              data: disconnectionData,
+            }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { id, relationField, relationIds }
+          { id, relationField, relationIds },
         );
       },
-      { id, relationField, relationIds }
+      { id, relationField, relationIds },
     );
   }
 
   /**
    * Set relations on an entity (replaces existing relations)
+   *
    * @param id The ID of the record to set relations on
    * @param relationField The name of the relation field
    * @param relationIds IDs of the related records to set
@@ -1121,31 +1184,32 @@ export class BaseRepository<
   async setRelations<TId = string | number>(
     id: TId,
     relationField: string,
-    relationIds: TId[]
+    relationIds: TId[],
   ): Promise<TModel> {
     const operationName = 'setRelations';
-    
+
     // Create set payload
     const setData: any = {
       [relationField]: {
-        set: relationIds.map(relId => ({ id: relId })),
+        set: relationIds.map((relId) => ({ id: relId })),
       },
     };
-    
+
     return this.trackExecution(
       operationName,
       async () => {
         return executeDbOperation(
-          () => this.model.update({
-            where: { id } as any,
-            data: setData,
-          }),
+          () =>
+            this.model.update({
+              where: { id } as any,
+              data: setData,
+            }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { id, relationField, relationIds }
+          { id, relationField, relationIds },
         );
       },
-      { id, relationField, relationIds }
+      { id, relationField, relationIds },
     );
   }
 
@@ -1157,7 +1221,7 @@ export class BaseRepository<
     options?: {
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel> {
     const operationName = 'softDelete';
 
@@ -1183,17 +1247,19 @@ export class BaseRepository<
               }),
             `${this.modelName}.${operationName}`,
             this.logger,
-            { where: combinedWhere, data: processedData }
+            { where: combinedWhere, data: processedData },
           );
           return this.executePostHooks(operationName, result);
         } catch (error: any) {
           if (error instanceof DatabaseError && error.cause?.name === 'P2025') {
-            this.logger.warn(`Record not found or already soft-deleted`, { where });
+            this.logger.warn(`Record not found or already soft-deleted`, {
+              where,
+            });
           }
           throw error;
         }
       },
-      { where: combinedWhere, data: processedData }
+      { where: combinedWhere, data: processedData },
     );
   }
 
@@ -1223,13 +1289,15 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where: combinedWhere, data: processedData }
+          { where: combinedWhere, data: processedData },
         );
 
-        const finalResult = await this.executePostHooks(operationName, { count: result.count });
+        const finalResult = await this.executePostHooks(operationName, {
+          count: result.count,
+        });
         return finalResult.count;
       },
-      { where: combinedWhere, data: processedData }
+      { where: combinedWhere, data: processedData },
     );
   }
 
@@ -1246,11 +1314,11 @@ export class BaseRepository<
           () => this.model.delete({ where }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where }
+          { where },
         );
         return this.executePostHooks(operationName, result);
       },
-      { where }
+      { where },
     );
   }
 
@@ -1268,12 +1336,14 @@ export class BaseRepository<
           () => this.model.deleteMany({ where }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where }
+          { where },
         );
-        const finalResult = await this.executePostHooks(operationName, { count: result.count });
+        const finalResult = await this.executePostHooks(operationName, {
+          count: result.count,
+        });
         return finalResult.count;
       },
-      { where }
+      { where },
     );
   }
 
@@ -1285,7 +1355,7 @@ export class BaseRepository<
     options?: {
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel> {
     const operationName = 'restore';
 
@@ -1295,7 +1365,10 @@ export class BaseRepository<
     } as TWhereUnique & Partial<TWhere>;
 
     const restoreData = this.getRestoreData();
-    const processedData = await this.executePreHooks(operationName, restoreData);
+    const processedData = await this.executePreHooks(
+      operationName,
+      restoreData,
+    );
 
     return this.trackExecution(
       operationName,
@@ -1310,7 +1383,7 @@ export class BaseRepository<
               }),
             `${this.modelName}.${operationName}`,
             this.logger,
-            { where: combinedWhere, data: processedData }
+            { where: combinedWhere, data: processedData },
           );
           return this.executePostHooks(operationName, result);
         } catch (error: any) {
@@ -1320,7 +1393,7 @@ export class BaseRepository<
           throw error;
         }
       },
-      { where: combinedWhere, data: processedData }
+      { where: combinedWhere, data: processedData },
     );
   }
 
@@ -1337,7 +1410,10 @@ export class BaseRepository<
     };
 
     const restoreData = this.getRestoreData();
-    const processedData = await this.executePreHooks(operationName, restoreData);
+    const processedData = await this.executePreHooks(
+      operationName,
+      restoreData,
+    );
 
     return this.trackExecution(
       operationName,
@@ -1350,13 +1426,15 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where: combinedWhere, data: processedData }
+          { where: combinedWhere, data: processedData },
         );
 
-        const finalResult = await this.executePostHooks(operationName, { count: result.count });
+        const finalResult = await this.executePostHooks(operationName, {
+          count: result.count,
+        });
         return finalResult.count;
       },
-      { where: combinedWhere, data: processedData }
+      { where: combinedWhere, data: processedData },
     );
   }
 
@@ -1366,7 +1444,10 @@ export class BaseRepository<
   async count(where: TWhere = {} as TWhere): Promise<number> {
     const operationName = 'count';
 
-    const processedWhere = await this.executePreHooks(`${operationName}Where`, where);
+    const processedWhere = await this.executePreHooks(
+      `${operationName}Where`,
+      where,
+    );
 
     return this.trackExecution(
       operationName,
@@ -1375,10 +1456,10 @@ export class BaseRepository<
           () => this.model.count({ where: processedWhere }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where: processedWhere }
+          { where: processedWhere },
         );
       },
-      { where: processedWhere }
+      { where: processedWhere },
     );
   }
 
@@ -1393,7 +1474,7 @@ export class BaseRepository<
         const c = await this.count(where);
         return c > 0;
       },
-      { where }
+      { where },
     );
   }
 
@@ -1412,7 +1493,7 @@ export class BaseRepository<
     options?: {
       select?: TSelect;
       include?: TInclude;
-    }
+    },
   ): Promise<TModel> {
     const operationName = 'upsert';
 
@@ -1426,8 +1507,14 @@ export class BaseRepository<
     }
 
     // Execute hooks separately if you want finer-grained logic
-    const finalCreateData = await this.executePreHooks('upsertCreate', initialCreateData);
-    const finalUpdateData = await this.executePreHooks('upsertUpdate', updateData);
+    const finalCreateData = await this.executePreHooks(
+      'upsertCreate',
+      initialCreateData,
+    );
+    const finalUpdateData = await this.executePreHooks(
+      'upsertUpdate',
+      updateData,
+    );
 
     return this.trackExecution(
       operationName,
@@ -1442,38 +1529,41 @@ export class BaseRepository<
             }),
           `${this.modelName}.${operationName}`,
           this.logger,
-          { where, createData: finalCreateData, updateData: finalUpdateData }
+          { where, createData: finalCreateData, updateData: finalUpdateData },
         );
 
         return this.executePostHooks(operationName, result);
       },
-      { where, createData: finalCreateData, updateData: finalUpdateData }
+      { where, createData: finalCreateData, updateData: finalUpdateData },
     );
   }
 
   /**
    * Bulk upsert - efficiently upsert multiple records
    * Use this when you need to insert or update many records at once
-   * 
+   *
    * @param records Array of records to create or update
    * @param uniqueFields Array of fields that uniquely identify each record
    */
   async bulkUpsert(
     records: Array<TCreate & Partial<{ id: string | number }>>,
-    uniqueFields: string[] = ['id']
+    uniqueFields: string[] = ['id'],
   ): Promise<{ count: number }> {
     const operationName = 'bulkUpsert';
-    
+
     if (!records.length) {
       return { count: 0 };
     }
-    
+
     return this.trackExecution(
       operationName,
       async () => {
         // Process records through pre-hooks
-        const processedRecords = await this.executePreHooks(operationName, records);
-        
+        const processedRecords = await this.executePreHooks(
+          operationName,
+          records,
+        );
+
         // For each record, we'll perform an individual upsert using Prisma transaction
         // This is more efficient than separate operations
         const result = await executeDbOperation(
@@ -1482,7 +1572,7 @@ export class BaseRepository<
             if (!this.prisma) {
               throw new Error('Prisma client not provided to repository');
             }
-            
+
             // Batch them in a transaction
             return this.prisma.$transaction(
               processedRecords.map((record: any) => {
@@ -1493,10 +1583,11 @@ export class BaseRepository<
                     where[field] = record[field];
                   }
                 }
-                
+
                 // Separate id from the data if it exists
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { id, ...createData } = record;
-                
+
                 // For create data, ensure soft delete flags are set
                 const finalCreateData: any = { ...createData };
                 if (this.softDeleteConfig.useDeletedFlag) {
@@ -1505,25 +1596,27 @@ export class BaseRepository<
                 if (this.softDeleteConfig.useDeletedAt) {
                   finalCreateData.deletedAt = null;
                 }
-                
+
                 // Return the upsert operation
                 return this.model.upsert({
                   where,
                   create: finalCreateData,
                   update: createData,
                 });
-              })
+              }),
             );
           },
           `${this.modelName}.${operationName}`,
           this.logger,
-          { recordCount: records.length }
+          { recordCount: records.length },
         );
-        
-        const countResult = { count: Array.isArray(result) ? result.length : 0 };
+
+        const countResult = {
+          count: Array.isArray(result) ? result.length : 0,
+        };
         return this.executePostHooks(operationName, countResult);
       },
-      { recordCount: records.length }
+      { recordCount: records.length },
     );
   }
 
@@ -1532,7 +1625,7 @@ export class BaseRepository<
    */
   async findDeleted(
     where: TWhere = {} as TWhere,
-    options?: QueryOptions<TOrderBy, TSelect, TInclude>
+    options?: QueryOptions<TOrderBy, TSelect, TInclude>,
   ): Promise<{
     data: TModel[];
     total: number;
@@ -1550,7 +1643,7 @@ export class BaseRepository<
 
     // Use the findAll method with the combined where clause to reuse pagination logic
     const result = await this.findAll(combinedWhere, options);
-    
+
     // Override the operation name for hooks
     return this.executePostHooks(operationName, result);
   }

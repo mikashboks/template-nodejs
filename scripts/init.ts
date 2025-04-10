@@ -12,11 +12,17 @@ const rootDir = path.join(__dirname, '..');
 
 // Check if a file is likely binary based on its extension
 async function isBinary(filePath: string): Promise<boolean> {
-  const textExtensions = /\.(ts|js|json|md|yml|yaml|html|css|env|txt|gitignore|npmrc|xml|svg)$/i;
-  const commonConfigs = /(\.config\.js|\.eslintrc\.js|commitlint\.config\.js|prettierrc)$/i;
+  const textExtensions =
+    /\.(ts|js|json|md|yml|yaml|html|css|env|txt|gitignore|npmrc|xml|svg)$/i;
+  const commonConfigs =
+    /(\.config\.js|\.eslintrc\.js|commitlint\.config\.js|prettierrc)$/i;
   const dockerfile = /Dockerfile$/i;
 
-  if (textExtensions.test(filePath) || commonConfigs.test(filePath) || dockerfile.test(filePath)) {
+  if (
+    textExtensions.test(filePath) ||
+    commonConfigs.test(filePath) ||
+    dockerfile.test(filePath)
+  ) {
     return false;
   }
   // For more precision, you could read the first few bytes to check for nulls, but this suffices for now
@@ -24,7 +30,10 @@ async function isBinary(filePath: string): Promise<boolean> {
 }
 
 // Process a directory recursively
-async function processDirectory(dirPath: string, templateVars: Record<string, string>): Promise<void> {
+async function processDirectory(
+  dirPath: string,
+  templateVars: Record<string, string>,
+): Promise<void> {
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
@@ -55,7 +64,10 @@ async function processDirectory(dirPath: string, templateVars: Record<string, st
 }
 
 // Process a single file, replacing template variables
-async function processFile(filePath: string, templateVars: Record<string, string>): Promise<void> {
+async function processFile(
+  filePath: string,
+  templateVars: Record<string, string>,
+): Promise<void> {
   try {
     let content = await fs.readFile(filePath, 'utf8');
     let modified = false;
@@ -71,7 +83,9 @@ async function processFile(filePath: string, templateVars: Record<string, string
       console.log(`✅ Updated ${path.relative(rootDir, filePath)}`);
     }
   } catch (err: any) {
-    console.error(`❌ Error processing ${path.relative(rootDir, filePath)}: ${err.message}`);
+    console.error(
+      `❌ Error processing ${path.relative(rootDir, filePath)}: ${err.message}`,
+    );
   }
 }
 
@@ -81,53 +95,54 @@ async function initialize(): Promise<void> {
 
   try {
     // Prompt user for project details
-const answers = await inquirer.prompt<Answers>([
-  {
-    type: 'input',
-    name: 'projectName',
-    message: 'Project name:',
-    default: path.basename(rootDir),
-  },
-  {
-    type: 'input',
-    name: 'projectDescription',
-    message: 'Project description:',
-  },
-  {
-    type: 'input',
-    name: 'authorName',
-    message: 'Author name:',
-  },
-  {
-    type: 'input',
-    name: 'authorEmail',
-    message: 'Author email:',
-  },
-  {
-    type: 'input',
-    name: 'dockerImage',
-    message: 'Docker image name:',
-    default: (ans: Answers) => `${ans.authorName?.toLowerCase() || 'user'}/${ans.projectName?.toLowerCase() || 'app'}`,
-  },
-  {
-    type: 'input',
-    name: 'productionUrl',
-    message: 'Production URL:',
-    default: 'https://api.example.com',
-  },
-  {
-    type: 'confirm',
-    name: 'installDeps',
-    message: 'Install dependencies now?',
-    default: true,
-  },
-  {
-    type: 'confirm',
-    name: 'initGit',
-    message: 'Initialize git repository?',
-    default: true,
-  },
-] as import('inquirer').DistinctQuestion<Answers>[]);
+    const answers = await inquirer.prompt<Answers>([
+      {
+        type: 'input',
+        name: 'projectName',
+        message: 'Project name:',
+        default: path.basename(rootDir),
+      },
+      {
+        type: 'input',
+        name: 'projectDescription',
+        message: 'Project description:',
+      },
+      {
+        type: 'input',
+        name: 'authorName',
+        message: 'Author name:',
+      },
+      {
+        type: 'input',
+        name: 'authorEmail',
+        message: 'Author email:',
+      },
+      {
+        type: 'input',
+        name: 'dockerImage',
+        message: 'Docker image name:',
+        default: (ans: Answers) =>
+          `${ans.authorName?.toLowerCase() || 'user'}/${ans.projectName?.toLowerCase() || 'app'}`,
+      },
+      {
+        type: 'input',
+        name: 'productionUrl',
+        message: 'Production URL:',
+        default: 'https://api.example.com',
+      },
+      {
+        type: 'confirm',
+        name: 'installDeps',
+        message: 'Install dependencies now?',
+        default: true,
+      },
+      {
+        type: 'confirm',
+        name: 'initGit',
+        message: 'Initialize git repository?',
+        default: true,
+      },
+    ] as import('inquirer').DistinctQuestion<Answers>[]);
     const templateVars = {
       PROJECT_NAME: answers.projectName,
       PROJECT_VERSION: '1.0.0',
@@ -149,7 +164,9 @@ const answers = await inquirer.prompt<Answers>([
       await fs.unlink(selfPath);
       console.log('✅ Initialization script removed.');
     } catch (rmErr: any) {
-      console.warn(`⚠️ Could not remove initialization script (${selfPath}): ${rmErr.message}`);
+      console.warn(
+        `⚠️ Could not remove initialization script (${selfPath}): ${rmErr.message}`,
+      );
     }
 
     // Initialize git repository if requested
@@ -158,10 +175,14 @@ const answers = await inquirer.prompt<Answers>([
       try {
         await exec('git init', { cwd: rootDir });
         await exec('git add .', { cwd: rootDir });
-        await exec('git commit -m "Initial commit from template"', { cwd: rootDir });
+        await exec('git commit -m "Initial commit from template"', {
+          cwd: rootDir,
+        });
         spinner.succeed('Git repository initialized and initial commit made.');
       } catch (gitErr: any) {
-        spinner.fail(`Git initialization failed: ${gitErr.stderr || gitErr.stdout || gitErr.message}`);
+        spinner.fail(
+          `Git initialization failed: ${gitErr.stderr || gitErr.stdout || gitErr.message}`,
+        );
       }
     }
 
@@ -173,7 +194,9 @@ const answers = await inquirer.prompt<Answers>([
         console.log(stdout);
         spinner.succeed('Dependencies installed.');
       } catch (npmErr: any) {
-        spinner.fail(`Dependency installation failed: ${npmErr.stderr || npmErr.stdout || npmErr.message}`);
+        spinner.fail(
+          `Dependency installation failed: ${npmErr.stderr || npmErr.stdout || npmErr.message}`,
+        );
       }
     }
 

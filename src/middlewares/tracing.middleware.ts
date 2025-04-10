@@ -1,11 +1,12 @@
-// Add tracing middleware template
-// Add tracing middleware template
-import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../libs/logger.js';
-import { randomBytes } from 'crypto';
-import { config } from '@/config/index.ts';
 
-export const tracingMiddleware = (req: Request, res: Response, next: NextFunction) => {
+import type { Request, Response, NextFunction } from 'express';
+
+export const tracingMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const traceHeader = req.header('x-cloud-trace-context');
 
   if (!traceHeader) {

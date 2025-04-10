@@ -1,5 +1,5 @@
 // src/routes/index.ts
-import { Router, type Request, type Response  } from 'express';
+import { Router, type Request, type Response } from 'express';
 
 // Import all route modules
 // This will be populated automatically when using the generate script
@@ -21,7 +21,7 @@ router.get('/', (req: Request, res: Response) => {
       // { path: '/users', description: 'User management' },
       // { path: '/orders', description: 'Order management' },
     ],
-    documentation: '/api-docs' // If you have Swagger UI set up
+    documentation: '/api-docs', // If you have Swagger UI set up
   });
 });
 

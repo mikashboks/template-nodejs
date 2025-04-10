@@ -1,12 +1,14 @@
 import { PrismaClient } from '@prisma/client';
-import { logger } from './logger.js'; // Assuming logger is correctly set up
+
 import { config } from '@/config/index.js';
 import { cache, NO_CACHE_ID } from '@/libs/cache.js'; // Assuming cache is correctly set up
+
 import {
   generatePrismaCacheKey,
   serializePrismaData,
   deserializePrismaData,
 } from './cache-utils.js'; // Import helpers
+import { logger } from './logger.js'; // Assuming logger is correctly set up
 
 // Determine logging levels based on environment
 const LOG_LEVELS =
@@ -15,7 +17,7 @@ const LOG_LEVELS =
     : ['query', 'info', 'warn', 'error']; // More verbose in development/test
 
 // Determine error format based on environment
-const ERROR_FORMAT = config().logging.format;
+const ERROR_FORMAT = config.logging.format;
 
 // Instantiate Prisma Client ONCE with configured logging and error format
 const prisma: PrismaClient = new PrismaClient({
@@ -72,7 +74,7 @@ prisma.$use(
         queryArgs: params.args,
 
         // We do not really need namespace here as we already have namespaced the cache using Keyv
-        // namespace: config().cache.namespace, // Use namespace from your config
+        // namespace: config.cache.namespace, // Use namespace from your config
       });
 
       try {
@@ -115,7 +117,7 @@ prisma.$use(
             cacheKey,
             serializedResult,
             // we aleady have a default TTL in the cache manager
-            // config().cache.defaultTtlMs,
+            // config.cache.defaultTtlMs,
           );
           logger.info(
             `[Cache Middleware] SET: ${params.model}.${params.action} (Key: ${cacheKey})`,
@@ -145,7 +147,7 @@ prisma.$use(
       logger.warn(
         `[Cache Middleware] Write operation ${params.model}.${params.action} occurred. Consider cache invalidation strategies for model '${params.model}'.`,
       );
-      // Example (if you had pattern deletion): await cache.delPattern(`${config().cache.namespace}:${params.model}:*`);
+      // Example (if you had pattern deletion): await cache.delPattern(`${config.cache.namespace}:${params.model}:*`);
 
       return result;
     }
@@ -197,6 +199,7 @@ let isShuttingDown = false; // Flag to prevent multiple shutdown attempts
  * Graceful shutdown handler for Prisma Client.
  * Ensures database connections are closed properly when the application terminates.
  * This is crucial for preventing connection leaks, especially in containerized environments.
+ *
  * @param signal The signal received (e.g., 'SIGINT', 'SIGTERM')
  */
 async function gracefulShutdown(signal: string) {
@@ -222,8 +225,12 @@ async function gracefulShutdown(signal: string) {
 }
 
 // Listen for termination signals sent by the OS or orchestrators like Cloud Run / Kubernetes
-process.on('SIGINT', () => gracefulShutdown('SIGINT')); // Signal for Ctrl+C
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM')); // Standard termination signal
+// eslint-disable-next-line @typescript-eslint/no-misused-promises
+process.on('SIGINT', async () => {
+  await gracefulShutdown('SIGINT');
+}); // Signal for Ctrl+C
+// eslint-disable-next-line @typescript-eslint/no-misused-promises
+process.on('SIGTERM', async () => await gracefulShutdown('SIGTERM')); // Standard termination signal
 
 // Export the singleton instance for use throughout the application
 export default prisma;

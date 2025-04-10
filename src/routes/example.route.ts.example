@@ -1,11 +1,12 @@
 // src/routes/product.routes.ts
 import { Router } from 'express';
+
 import { ProductController } from '../controllers/product.controller.js';
-import { requestIdMiddleware } from '../middleware/request-id.middleware.js';
 import { asyncHandler } from '../middleware/async-handler.middleware.js';
 import { cacheControl } from '../middleware/cache-control.middleware.js';
-import { validateResourceId } from '../middleware/validation.middleware.js';
 import { rateLimiter } from '../middleware/rate-limit.middleware.js';
+import { requestIdMiddleware } from '../middleware/request-id.middleware.js';
+import { validateResourceId } from '../middleware/validation.middleware.js';
 
 // Create router
 const router = Router();
@@ -85,7 +86,7 @@ router.get(
   '/',
   requestIdMiddleware,
   cacheControl({ maxAge: 60, staleWhileRevalidate: 600 }), // 1 minute cache, 10 minutes stale
-  asyncHandler(productController.getProducts)
+  asyncHandler(productController.getProducts),
 );
 
 /**
@@ -115,7 +116,7 @@ router.get(
   requestIdMiddleware,
   validateResourceId('id'),
   cacheControl({ maxAge: 300, staleWhileRevalidate: 3600 }), // 5 minutes cache, 1 hour stale
-  asyncHandler(productController.getProductById)
+  asyncHandler(productController.getProductById),
 );
 
 /**
@@ -171,7 +172,7 @@ router.post(
   '/',
   requestIdMiddleware,
   rateLimiter({ windowMs: 60000, max: 10 }), // 10 requests per minute
-  asyncHandler(productController.createProduct)
+  asyncHandler(productController.createProduct),
 );
 
 /**
@@ -235,7 +236,7 @@ router.put(
   requestIdMiddleware,
   validateResourceId('id'),
   rateLimiter({ windowMs: 60000, max: 20 }), // 20 requests per minute
-  asyncHandler(productController.updateProduct)
+  asyncHandler(productController.updateProduct),
 );
 
 /**
@@ -267,7 +268,7 @@ router.delete(
   requestIdMiddleware,
   validateResourceId('id'),
   rateLimiter({ windowMs: 60000, max: 10 }), // 10 requests per minute
-  asyncHandler(productController.deleteProduct)
+  asyncHandler(productController.deleteProduct),
 );
 
 export default router;

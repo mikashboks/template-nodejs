@@ -45,21 +45,18 @@ Then, create specific repositories for your models:
 ```typescript
 // userRepository.ts
 import { repositoryFactory } from './repository-factory';
-import type { 
-  User, 
-  Prisma 
-} from '@prisma/client';
+import type { User, Prisma } from '@prisma/client';
 
 // Create a repository for the User model
 const userRepository = repositoryFactory.create<
-  User,                                  // Model
-  Prisma.UserWhereUniqueInput,           // WhereUnique
-  Prisma.UserWhereInput,                 // Where
-  Prisma.UserOrderByWithRelationInput,   // OrderBy
-  Prisma.UserCreateInput,                // Create
-  Prisma.UserUpdateInput,                // Update
-  Prisma.UserSelect,                     // Select
-  Prisma.UserInclude                     // Include
+  User, // Model
+  Prisma.UserWhereUniqueInput, // WhereUnique
+  Prisma.UserWhereInput, // Where
+  Prisma.UserOrderByWithRelationInput, // OrderBy
+  Prisma.UserCreateInput, // Create
+  Prisma.UserUpdateInput, // Update
+  Prisma.UserSelect, // Select
+  Prisma.UserInclude // Include
 >('User');
 
 export { userRepository };
@@ -74,13 +71,13 @@ export { userRepository };
 const user = await userRepository.create({
   name: 'John Doe',
   email: 'john@example.com',
-  role: 'USER'
+  role: 'USER',
 });
 
 // Create multiple users
 const count = await userRepository.createMany([
   { name: 'Alice', email: 'alice@example.com', role: 'USER' },
-  { name: 'Bob', email: 'bob@example.com', role: 'USER' }
+  { name: 'Bob', email: 'bob@example.com', role: 'USER' },
 ]);
 ```
 
@@ -93,17 +90,17 @@ const user = await userRepository.findByUnique({ id: 1 });
 // Find with conditions
 const activeUsers = await userRepository.findOne({
   active: true,
-  role: 'ADMIN'
+  role: 'ADMIN',
 });
 
 // Find multiple records with pagination
 const { data, total, pageInfo } = await userRepository.findAll(
   { role: 'USER' },
-  { 
+  {
     pagination: { strategy: 'offset', page: 1, pageSize: 10 },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, email: true }
-  }
+    select: { id: true, name: true, email: true },
+  },
 );
 ```
 
@@ -113,13 +110,13 @@ const { data, total, pageInfo } = await userRepository.findAll(
 // Update a single record
 const updatedUser = await userRepository.update(
   { id: 1 },
-  { name: 'John Smith', updatedAt: new Date() }
+  { name: 'John Smith', updatedAt: new Date() },
 );
 
 // Update multiple records
 const updatedCount = await userRepository.updateMany(
   { role: 'USER' },
-  { active: true }
+  { active: true },
 );
 ```
 
@@ -144,7 +141,8 @@ The query builder provides a fluent API for building complex queries:
 
 ```typescript
 // Find active admins, ordered by creation date, with pagination
-const { data: admins, total } = await userRepository.query()
+const { data: admins, total } = await userRepository
+  .query()
   .where({ role: 'ADMIN' })
   .orderBy({ createdAt: 'desc' })
   .skip(10)
@@ -152,12 +150,14 @@ const { data: admins, total } = await userRepository.query()
   .findAll();
 
 // Count users matching criteria
-const adminCount = await userRepository.query()
+const adminCount = await userRepository
+  .query()
   .where({ role: 'ADMIN' })
   .count();
 
 // Check if any users match criteria
-const hasActiveAdmins = await userRepository.query()
+const hasActiveAdmins = await userRepository
+  .query()
   .where({ role: 'ADMIN', active: true })
   .exists();
 ```
@@ -166,25 +166,13 @@ const hasActiveAdmins = await userRepository.query()
 
 ```typescript
 // Connect a user to roles (many-to-many)
-await userRepository.connectRelations(
-  userId,
-  'roles',
-  [roleId1, roleId2]
-);
+await userRepository.connectRelations(userId, 'roles', [roleId1, roleId2]);
 
 // Disconnect a user from roles
-await userRepository.disconnectRelations(
-  userId,
-  'roles',
-  [roleId1]
-);
+await userRepository.disconnectRelations(userId, 'roles', [roleId1]);
 
 // Set roles for a user (replaces existing connections)
-await userRepository.setRelations(
-  userId,
-  'roles',
-  [roleId3, roleId4]
-);
+await userRepository.setRelations(userId, 'roles', [roleId3, roleId4]);
 ```
 
 ### Transaction Support
@@ -196,15 +184,15 @@ const result = await userRepository.withTransaction(async (txRepo) => {
   // Create user
   const user = await txRepo.create({
     name: 'Jane Smith',
-    email: 'jane@example.com'
+    email: 'jane@example.com',
   });
-  
+
   // Create profile for user
   const profile = await profileRepository.create({
     userId: user.id,
-    bio: 'Software developer'
+    bio: 'Software developer',
   });
-  
+
   // Return composite result
   return { user, profile };
 });
@@ -236,10 +224,13 @@ Efficiently handle multiple records at once:
 
 ```typescript
 // Bulk upsert (create or update)
-const { count } = await userRepository.bulkUpsert([
-  { email: 'john@example.com', name: 'John Doe', role: 'USER' },
-  { email: 'jane@example.com', name: 'Jane Smith', role: 'ADMIN' }
-], ['email']);
+const { count } = await userRepository.bulkUpsert(
+  [
+    { email: 'john@example.com', name: 'John Doe', role: 'USER' },
+    { email: 'jane@example.com', name: 'Jane Smith', role: 'ADMIN' },
+  ],
+  ['email'],
+);
 ```
 
 ## Complete Example
@@ -257,29 +248,29 @@ export class UserService {
   async registerUser(userData, profileData) {
     // Hash the password before storing
     const hashedPassword = await hashPassword(userData.password);
-    
+
     return userRepository.withTransaction(async (txUserRepo) => {
       // Create the user in the transaction
       const user = await txUserRepo.create({
         ...userData,
-        password: hashedPassword
+        password: hashedPassword,
       });
-      
+
       // Create user profile in the same transaction
       const profile = await profileRepository.create({
         ...profileData,
-        userId: user.id
+        userId: user.id,
       });
-      
+
       // Return composite result (without password)
       const { password, ...userWithoutPassword } = user;
       return {
         ...userWithoutPassword,
-        profile
+        profile,
       };
     });
   }
-  
+
   // Find users with pagination
   async findUsers(filters, page = 1, pageSize = 10) {
     return userRepository.findAll(filters, {
@@ -291,16 +282,16 @@ export class UserService {
         email: true,
         role: true,
         createdAt: true,
-        profile: true
-      }
+        profile: true,
+      },
     });
   }
-  
+
   // Deactivate user (soft delete)
   async deactivateUser(userId) {
     return userRepository.softDelete({ id: userId });
   }
-  
+
   // Assign roles to user
   async assignRoles(userId, roleIds) {
     return userRepository.connectRelations(userId, 'roles', roleIds);

@@ -1,6 +1,10 @@
-// src/errors/index.ts
+import {
+  PrismaClientKnownRequestError,
+  PrismaClientValidationError,
+  PrismaClientRustPanicError,
+} from '@prisma/client/runtime/library';
 import { ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
+
 import { BaseError } from './base.js';
 import { DatabaseError } from './database-errors.js';
 import {
@@ -16,12 +20,6 @@ export * from './base.js';
 export * from './http-errors.js';
 export * from './database-errors.js';
 export * from './validation-errors.js';
-
-import { 
-    PrismaClientKnownRequestError,
-    PrismaClientValidationError,
-    PrismaClientRustPanicError
-  } from '@prisma/client/runtime/library';
 
 /**
  * Converts various error types to a standardized AppError

@@ -1,8 +1,9 @@
 // src/middleware/errorHandler.ts
-import type { Request, Response, NextFunction } from 'express';
-import { logger } from '../libs/logger.js';
 import { config } from '../config/index.js';
 import { normalizeError, getLogLevel } from '../errors/index.js';
+import { logger } from '../libs/logger.js';
+
+import type { Request, Response, NextFunction } from 'express';
 
 /**
  * Comprehensive global error handling middleware.
@@ -14,23 +15,17 @@ export function errorHandlerMiddleware(
   req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  next: NextFunction
+  next: NextFunction,
 ): void {
   try {
-    const appConfig = config();
+    const appConfig = config;
     const reqLogger = (req as any).log || logger;
     const requestId = (req as any).id || 'unknown';
 
     const normalizedError = normalizeError(err);
 
-    const {
-      statusCode,
-      message,
-      errorType,
-      details,
-      cause,
-      stack,
-    } = normalizedError;
+    const { statusCode, message, errorType, details, cause, stack } =
+      normalizedError;
 
     const traceHeader = req.header('X-Cloud-Trace-Context');
     const traceId = traceHeader?.split('/')[0];

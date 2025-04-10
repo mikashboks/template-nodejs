@@ -64,19 +64,23 @@ A production-ready Node.js TypeScript boilerplate providing a solid foundation w
 ## Getting Started
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/mikashboks/nodejs-boilerplate.git my-project
    cd my-project
    ```
 
 2. **Initialize your project**:
+
    ```bash
    npm install
    npm run init
    ```
+
    Follow the prompts to customize the project for your needs.
 
 3. **Set up environment variables**:
+
    ```bash
    # Copy the example environment file
    cp .env.example .env
@@ -93,35 +97,37 @@ A production-ready Node.js TypeScript boilerplate providing a solid foundation w
 
 ### Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Run server in development mode with auto-reloading |
-| `npm run build` | Compile TypeScript to JavaScript (output in `dist/`) |
-| `npm start` | Run the compiled JavaScript code (run `npm run build` first) |
-| `npm run lint` | Check code for linting errors |
-| `npm run lint:fix` | Fix linting errors automatically |
-| `npm run format` | Format code with Prettier |
-| `npm run format:fix` | Fix formatting issues automatically |
-| `npm test` | Run all tests |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:coverage` | Generate test coverage report |
-| `npm run typecheck` | Run TypeScript compiler checks without emitting files |
-| `npm run validate` | Run linting, type checking, and tests |
-| `npm run docker:build` | Build Docker image |
-| `npm run docker:run` | Run container from built image |
-| `npm run init` | Initialize a new project from this template |
-| `npm run generate` | Generate new module (controller, service, routes, etc.) |
+| Command                 | Description                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| `npm run dev`           | Run server in development mode with auto-reloading           |
+| `npm run build`         | Compile TypeScript to JavaScript (output in `dist/`)         |
+| `npm start`             | Run the compiled JavaScript code (run `npm run build` first) |
+| `npm run lint`          | Check code for linting errors                                |
+| `npm run lint:fix`      | Fix linting errors automatically                             |
+| `npm run format`        | Format code with Prettier                                    |
+| `npm run format:fix`    | Fix formatting issues automatically                          |
+| `npm test`              | Run all tests                                                |
+| `npm run test:watch`    | Run tests in watch mode                                      |
+| `npm run test:coverage` | Generate test coverage report                                |
+| `npm run typecheck`     | Run TypeScript compiler checks without emitting files        |
+| `npm run validate`      | Run linting, type checking, and tests                        |
+| `npm run docker:build`  | Build Docker image                                           |
+| `npm run docker:run`    | Run container from built image                               |
+| `npm run init`          | Initialize a new project from this template                  |
+| `npm run generate`      | Generate new module (controller, service, routes, etc.)      |
 
 ### Using the Init Script
 
 The initialization script (`npm run init`) helps you quickly set up a new project with your specific details:
 
 1. **Run the script**: After cloning the repository and installing dependencies
+
    ```bash
    npm run init
    ```
 
 2. **Provide project details** when prompted:
+
    - Project name
    - Project description
    - Author name & email
@@ -141,21 +147,25 @@ The initialization script (`npm run init`) helps you quickly set up a new projec
 The code generator script helps you scaffold new modules following recommended patterns:
 
 1. **Interactive usage**:
+
    ```bash
    npm run generate
    ```
+
    Follow the prompts to enter module details.
 
 2. **Command-line usage**:
+
    ```bash
    # Generate all components for 'product' module
    npm run generate -- --name product --all --yes
-   
+
    # Generate specific components with custom path
    npm run generate -- --name order --types controller,service --base-path /api/v2 --yes
    ```
 
 3. **Available options**:
+
    - `--name <name>`: Module name (required)
    - `--plural <plural>`: Plural form (default: name + 's')
    - `--types <types>`: Components to generate (comma-separated)
@@ -201,6 +211,7 @@ The code generator script helps you scaffold new modules following recommended p
 This project includes Docker support for both development and production:
 
 1. **Build the Docker image**:
+
    ```bash
    npm run docker:build
    # or directly:
@@ -215,6 +226,7 @@ This project includes Docker support for both development and production:
    ```
 
 The Dockerfile is optimized for Cloud Run with:
+
 - Multi-stage builds to minimize image size
 - Node Alpine base for smaller footprint
 - Non-root user for security
@@ -229,15 +241,17 @@ The Dockerfile is optimized for Cloud Run with:
 This project is optimized for Google Cloud Run deployment:
 
 1. **Build and push the Docker image**:
+
    ```bash
    # Build the production image
    docker build -t gcr.io/YOUR_PROJECT_ID/my-service:latest .
-   
+
    # Push to Google Container Registry
    docker push gcr.io/YOUR_PROJECT_ID/my-service:latest
    ```
 
 2. **Deploy to Cloud Run**:
+
    ```bash
    gcloud run deploy my-service \
      --image gcr.io/YOUR_PROJECT_ID/my-service:latest \
@@ -263,6 +277,7 @@ This project is optimized for Google Cloud Run deployment:
    ```
 
 **Key Cloud Run optimizations included**:
+
 - Database connection pooling and proper disconnection
 - Memory management with request-scoped services
 - Graceful shutdown handling
@@ -275,6 +290,7 @@ This project is optimized for Google Cloud Run deployment:
 This project includes a GitHub Actions workflow for CI/CD with Google Cloud Platform:
 
 1. **Required secrets**:
+
    - `GCP_PROJECT_ID`: Your Google Cloud project ID
    - `GCP_SA_KEY`: Service account key JSON (with Container Registry and Cloud Run permissions)
    - `GCP_REGION`: Deployment region (e.g., `us-central1`)
@@ -282,6 +298,7 @@ This project includes a GitHub Actions workflow for CI/CD with Google Cloud Plat
    - `SLACK_WEBHOOK`: (Optional) Webhook for deployment notifications
 
 2. **Workflow stages**:
+
    - Validate: Linting and type checking
    - Test: Run tests with coverage reporting
    - Security: Run vulnerability scans

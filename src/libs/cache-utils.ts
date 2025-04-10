@@ -1,7 +1,8 @@
 // src/lib/cache.utils.ts
 import { createHash } from 'crypto';
-import stringify from 'safe-stable-stringify';
+
 import { Decimal } from '@prisma/client/runtime/library';
+import stringify from 'safe-stable-stringify';
 
 // Define default prefixes or allow overriding via config if needed
 const defaultPrefixes = {
@@ -22,13 +23,12 @@ export function generatePrismaCacheKey(params: {
 }): string {
   const argsString = stringify(params.queryArgs, (_, v) =>
     // Handle BigInt serialization for hashing
-    typeof v === 'bigint' ? v.toString() : v
+    typeof v === 'bigint' ? v.toString() : v,
   );
   const hash = createHash('md5').update(argsString!).digest('hex');
   const modelOp = `${params.model ?? 'raw'}:${params.operation}`; // Use 'raw' for non-model operations if needed
   return `prisma:${params.namespace ? params.namespace + ':' : ''}${modelOp}@${hash}`;
 }
-
 
 // --- Serialization ---
 // Adapted from provided code
@@ -72,7 +72,10 @@ export function deserializePrismaData<T = any>(serializedData: string): T {
       return new Date(value.substring(defaultPrefixes.Date.length));
     }
     if (value.startsWith(defaultPrefixes.Buffer)) {
-      return Buffer.from(value.substring(defaultPrefixes.Buffer.length), 'base64');
+      return Buffer.from(
+        value.substring(defaultPrefixes.Buffer.length),
+        'base64',
+      );
     }
     // Add other types if needed
     return value;

@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { ProductService } from '../services/product.service.ts';
+import { ProductService } from '../services/product.service.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
-import { handleServiceError } from '../utils/error-handler.ts';
+import { handleServiceError } from '../utils/error-handler.js';
 
 // Input validation schemas
 const productCreateSchema = z.object({

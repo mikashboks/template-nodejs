@@ -16,10 +16,15 @@ const srcDir = path.join(rootDir, 'src');
 // Set up command line arguments
 program
   .name('generate')
-  .description('Generate module files for your Node.js application optimized for Cloud Run')
+  .description(
+    'Generate module files for your Node.js application optimized for Cloud Run',
+  )
   .option('-n, --name <name>', 'Module name (singular, e.g., "user")')
   .option('-p, --plural <plural>', 'Plural form of the module name')
-  .option('-t, --types <types>', 'Module types to generate (comma-separated: controller,route,service,test,model)')
+  .option(
+    '-t, --types <types>',
+    'Module types to generate (comma-separated: controller,route,service,test,model)',
+  )
   .option('-a, --all', 'Generate all module types')
   .option('-c, --cloud-run', 'Add Cloud Run specific configurations', true)
   .option('-b, --base-path <path>', 'Base API path for the module', '/api/v1')
@@ -575,7 +580,7 @@ describe('{{Name}} API', () => {
 });
 `,
 
-  'prismaModel': `model {{Name}} {
+  prismaModel: `model {{Name}} {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -726,7 +731,10 @@ export default router;
 
 // Helper Functions
 async function loadTemplate(templateName: string): Promise<string> {
-  const customTemplatePath = path.join(templatesDir, `${templateName}.template`);
+  const customTemplatePath = path.join(
+    templatesDir,
+    `${templateName}.template`,
+  );
   try {
     await fs.access(customTemplatePath);
     const content = await fs.readFile(customTemplatePath, 'utf8');
@@ -737,7 +745,10 @@ async function loadTemplate(templateName: string): Promise<string> {
   }
 }
 
-function processTemplate(templateContent: string, variables: GenerateOptions): string {
+function processTemplate(
+  templateContent: string,
+  variables: GenerateOptions,
+): string {
   let result = templateContent;
   for (const [key, value] of Object.entries(variables)) {
     const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
@@ -776,7 +787,7 @@ interface GenerateOptions {
 async function generateFile(
   moduleType: string,
   variables: GenerateOptions,
-  skipConfirmation: boolean = false
+  skipConfirmation: boolean = false,
 ): Promise<string | null> {
   const spinner = ora(`Generating ${moduleType}...`).start();
 
@@ -831,7 +842,9 @@ async function generateFile(
     const fileAlreadyExists = await fileExists(filePath);
     if (fileAlreadyExists) {
       if (skipConfirmation) {
-        spinner.info(`File ${path.relative(rootDir, filePath)} already exists, skipping...`);
+        spinner.info(
+          `File ${path.relative(rootDir, filePath)} already exists, skipping...`,
+        );
         return null;
       }
 
@@ -840,7 +853,7 @@ async function generateFile(
           type: 'confirm',
           name: 'overwrite',
           message: `File ${path.relative(rootDir, filePath)} exists. Overwrite?`,
-          default: false
+          default: false,
         },
       ]);
 
@@ -851,7 +864,9 @@ async function generateFile(
     }
 
     await fs.writeFile(filePath, content, 'utf8');
-    spinner.succeed(`Generated ${chalk.green(path.relative(rootDir, filePath))}`);
+    spinner.succeed(
+      `Generated ${chalk.green(path.relative(rootDir, filePath))}`,
+    );
     return filePath;
   } catch (error: any) {
     spinner.fail(`Failed to generate ${moduleType}: ${error.message}`);
@@ -862,7 +877,7 @@ async function generateFile(
 async function updatePrismaSchema(
   modelContent: string,
   variables: GenerateOptions,
-  spinner: Ora
+  spinner: Ora,
 ): Promise<void> {
   spinner.text = 'Updating Prisma schema...';
   const schemaPath = path.join(rootDir, 'prisma/schema.prisma');
@@ -870,7 +885,9 @@ async function updatePrismaSchema(
   try {
     const schemaExists = await fileExists(schemaPath);
     if (!schemaExists) {
-      spinner.warn('Prisma schema not found. Please run `npx prisma init` first.');
+      spinner.warn(
+        'Prisma schema not found. Please run `npx prisma init` first.',
+      );
       spinner.info('Model definition to add manually:');
       console.log(chalk.cyan(modelContent));
       return;
@@ -878,15 +895,22 @@ async function updatePrismaSchema(
 
     let schemaContent = await fs.readFile(schemaPath, 'utf8');
 
-    if (schemaContent.includes(`model ${variables.Name} {`) || schemaContent.includes(`model ${variables.NamePlural} {`)) {
-      spinner.info(`Prisma model ${variables.Name} or ${variables.NamePlural} already exists in schema`);
+    if (
+      schemaContent.includes(`model ${variables.Name} {`) ||
+      schemaContent.includes(`model ${variables.NamePlural} {`)
+    ) {
+      spinner.info(
+        `Prisma model ${variables.Name} or ${variables.NamePlural} already exists in schema`,
+      );
       return;
     }
 
     // Append model definition neatly before the end or after last model
     schemaContent = schemaContent.trimEnd() + `\n\n${modelContent.trim()}\n`;
     await fs.writeFile(schemaPath, schemaContent, 'utf8');
-    spinner.succeed(`Updated Prisma schema with ${chalk.cyan(variables.Name)} model`);
+    spinner.succeed(
+      `Updated Prisma schema with ${chalk.cyan(variables.Name)} model`,
+    );
   } catch (err: any) {
     spinner.fail(`Error updating Prisma schema: ${err.message}`);
     spinner.info('Add this model manually to prisma/schema.prisma:');
@@ -897,12 +921,14 @@ async function updatePrismaSchema(
 async function updateRoutesIndex(
   name: string,
   basePath: string = '/api/v1',
-  isHealthRoute: boolean = false
+  isHealthRoute: boolean = false,
 ): Promise<void> {
   const spinner = ora('Updating routes index...').start();
   const indexPath = path.join(srcDir, 'routes/index.ts');
   const importName = isHealthRoute ? 'healthRoutes' : `${name}Routes`;
-  const importPath = isHealthRoute ? './health.routes.js' : `./${name}.routes.js`; // Ensure .js extension for ESM
+  const importPath = isHealthRoute
+    ? './health.routes.js'
+    : `./${name}.routes.js`; // Ensure .js extension for ESM
 
   try {
     let content = '';
@@ -927,8 +953,13 @@ export default router;
       content = await fs.readFile(indexPath, 'utf8');
 
       // Check if already imported/used
-      if (content.includes(`import ${importName}`) || content.includes(`'${importPath}'`)) {
-        spinner.info(`Route for '${importName}' seems to already exist in routes index.`);
+      if (
+        content.includes(`import ${importName}`) ||
+        content.includes(`'${importPath}'`)
+      ) {
+        spinner.info(
+          `Route for '${importName}' seems to already exist in routes index.`,
+        );
         return;
       }
 
@@ -937,67 +968,100 @@ export default router;
       const lastImportIndex = content.lastIndexOf('import');
       if (lastImportIndex >= 0) {
         const importEndIndex = content.indexOf('\n', lastImportIndex) + 1;
-        content = content.slice(0, importEndIndex) + importStatement + content.slice(importEndIndex);
+        content =
+          content.slice(0, importEndIndex) +
+          importStatement +
+          content.slice(importEndIndex);
       } else {
         // No imports? Add at the top after potential initial comments/directives
-        content = `import { Router } from 'express';\n${importStatement}` + content;
+        content =
+          `import { Router } from 'express';\n${importStatement}` + content;
       }
 
       // Insert router.use statement before export default
       const exportDefaultMatch = /export\s+default\s+router\s*;/;
       const exportIndex = content.search(exportDefaultMatch);
       if (exportIndex >= 0) {
-         const routerUseStatement = `router.use('${isHealthRoute ? '/' : basePath}', ${importName});\n`;
-         content = content.slice(0, exportIndex) + routerUseStatement + content.slice(exportIndex);
+        const routerUseStatement = `router.use('${isHealthRoute ? '/' : basePath}', ${importName});\n`;
+        content =
+          content.slice(0, exportIndex) +
+          routerUseStatement +
+          content.slice(exportIndex);
       } else {
-          // If export default not found, append (less ideal)
-          spinner.warn("Could not find 'export default router;'. Appending router.use at the end.");
-          content += `\nrouter.use('${isHealthRoute ? '/' : basePath}', ${importName});\n`;
+        // If export default not found, append (less ideal)
+        spinner.warn(
+          "Could not find 'export default router;'. Appending router.use at the end.",
+        );
+        content += `\nrouter.use('${isHealthRoute ? '/' : basePath}', ${importName});\n`;
       }
     }
 
     await fs.writeFile(indexPath, content, 'utf8');
     spinner.succeed(`Updated routes index with ${chalk.cyan(importName)}`);
-
   } catch (error: any) {
     spinner.fail(`Failed to update routes index: ${error.message}`);
-    spinner.info(chalk.yellow('Manual update required for src/routes/index.ts:'));
+    spinner.info(
+      chalk.yellow('Manual update required for src/routes/index.ts:'),
+    );
     console.log(chalk.cyan(`  import ${importName} from '${importPath}';`));
-    console.log(chalk.cyan(`  router.use('${isHealthRoute ? '/' : basePath}', ${importName});`));
+    console.log(
+      chalk.cyan(
+        `  router.use('${isHealthRoute ? '/' : basePath}', ${importName});`,
+      ),
+    );
   }
 }
-
 
 // Main Generator Function
 async function generate(): Promise<void> {
   console.log(chalk.blue.bold('\n🚀 Module Generator for Cloud Run v2\n'));
 
   try {
-    let name: string, namePlural: string, moduleTypes: string[], addCloudRun: boolean, basePath: string;
+    let name: string,
+      namePlural: string,
+      moduleTypes: string[],
+      addCloudRun: boolean,
+      basePath: string;
 
     // Prioritize CLI options if --yes is provided, otherwise prompt
     if (options.yes && options.name) {
-      console.log(chalk.yellow('Running in non-interactive mode based on CLI flags...'));
+      console.log(
+        chalk.yellow('Running in non-interactive mode based on CLI flags...'),
+      );
       name = options.name;
       namePlural = options.plural || `${options.name}s`;
       if (options.all) {
-          moduleTypes = ['controller.ts', 'route.ts', 'service.ts', 'test.ts', 'prismaModel'];
+        moduleTypes = [
+          'controller.ts',
+          'route.ts',
+          'service.ts',
+          'test.ts',
+          'prismaModel',
+        ];
       } else if (options.types) {
-          // Validate and map types
-          moduleTypes = options.types.split(',').map((t: string) => t.trim().endsWith('.ts') ? t.trim() : `${t.trim()}.ts`)
-                         .filter((t: string) => defaultTemplates.hasOwnProperty(t) || t === 'prismaModel');
+        // Validate and map types
+        moduleTypes = options.types
+          .split(',')
+          .map((t: string) =>
+            t.trim().endsWith('.ts') ? t.trim() : `${t.trim()}.ts`,
+          )
+          .filter(
+            (t: string) =>
+              defaultTemplates.hasOwnProperty(t) || t === 'prismaModel',
+          );
       } else {
-          // Default types if none specified in non-interactive mode
-          moduleTypes = ['controller.ts', 'route.ts', 'service.ts'];
+        // Default types if none specified in non-interactive mode
+        moduleTypes = ['controller.ts', 'route.ts', 'service.ts'];
       }
       addCloudRun = options.cloudRun !== false; // Default true unless explicitly false
       basePath = options.basePath || '/api/v1'; // Use default if not provided
 
       // Validate required non-interactive flags
       if (!moduleTypes || moduleTypes.length === 0) {
-          throw new Error('No valid module types specified with --types or --all.');
+        throw new Error(
+          'No valid module types specified with --types or --all.',
+        );
       }
-
     } else {
       // Interactive mode using inquirer
       interface Answers {
@@ -1016,11 +1080,11 @@ async function generate(): Promise<void> {
           default: options.name,
           filter: (input: string) => input.trim(),
           validate: (input: string) => {
-        if (!input) return 'Module name cannot be empty';
-        if (!/^[a-z][a-zA-Z0-9]*$/.test(input)) {
-          return 'Module name must start with a lowercase letter and contain only alphanumeric characters (camelCase recommended)';
-        }
-        return true;
+            if (!input) return 'Module name cannot be empty';
+            if (!/^[a-z][a-zA-Z0-9]*$/.test(input)) {
+              return 'Module name must start with a lowercase letter and contain only alphanumeric characters (camelCase recommended)';
+            }
+            return true;
           },
         },
         {
@@ -1041,13 +1105,26 @@ async function generate(): Promise<void> {
           name: 'moduleTypes',
           message: 'Select components to generate:',
           choices: [
-        { name: 'Controller (API handling)', value: 'controller.ts', checked: true },
-        { name: 'Route (Endpoints)', value: 'route.ts', checked: true },
-        { name: 'Service (Logic & DB)', value: 'service.ts', checked: true },
-        { name: 'Test (Vitest spec)', value: 'test.ts', checked: false },
-        { name: 'Prisma Model (DB schema snippet)', value: 'prismaModel', checked: true },
+            {
+              name: 'Controller (API handling)',
+              value: 'controller.ts',
+              checked: true,
+            },
+            { name: 'Route (Endpoints)', value: 'route.ts', checked: true },
+            {
+              name: 'Service (Logic & DB)',
+              value: 'service.ts',
+              checked: true,
+            },
+            { name: 'Test (Vitest spec)', value: 'test.ts', checked: false },
+            {
+              name: 'Prisma Model (DB schema snippet)',
+              value: 'prismaModel',
+              checked: true,
+            },
           ],
-          validate: (choices: string[]) => choices.length > 0 || 'Select at least one component',
+          validate: (choices: string[]) =>
+            choices.length > 0 || 'Select at least one component',
         },
         {
           type: 'confirm',
@@ -1074,39 +1151,55 @@ async function generate(): Promise<void> {
       Name,
       namePlural,
       NamePlural,
-      basePath
+      basePath,
     };
 
     // Generate Cloud Run health check if requested and doesn't exist
     if (addCloudRun) {
-      const healthControllerPath = path.join(srcDir, 'controllers/health.controller.ts');
+      const healthControllerPath = path.join(
+        srcDir,
+        'controllers/health.controller.ts',
+      );
       const healthRoutePath = path.join(srcDir, 'routes/health.routes.ts');
       const healthControllerExists = await fileExists(healthControllerPath);
       const healthRouteExists = await fileExists(healthRoutePath);
 
       if (!healthControllerExists || !healthRouteExists) {
-        console.log(chalk.blue('\nGenerating Cloud Run health check components...'));
+        console.log(
+          chalk.blue('\nGenerating Cloud Run health check components...'),
+        );
         await generateFile('healthCheck.ts', variables, options.yes);
         await generateFile('healthRoute.ts', variables, options.yes);
         await updateRoutesIndex('health', '/', true); // Health checks usually at root
       } else {
-        console.log(chalk.yellow('Health check files already seem to exist, skipping generation.'));
+        console.log(
+          chalk.yellow(
+            'Health check files already seem to exist, skipping generation.',
+          ),
+        );
       }
     }
 
-    console.log(chalk.blue(`\nGenerating module '${name}' with components: ${moduleTypes.join(', ')}`));
+    console.log(
+      chalk.blue(
+        `\nGenerating module '${name}' with components: ${moduleTypes.join(', ')}`,
+      ),
+    );
 
     // Generate the requested module files
     const generatedFiles: string[] = [];
     for (const type of moduleTypes) {
       const generatedPath = await generateFile(type, variables, options.yes);
       if (generatedPath) {
-          generatedFiles.push(generatedPath);
+        generatedFiles.push(generatedPath);
       }
     }
 
     // Update routes index if route was generated
-    if (moduleTypes.includes('route.ts') && generatedFiles.some(p => p.endsWith('.routes.ts'))) {
+    if (
+      moduleTypes.includes('route.ts') &&
+      generatedFiles.some((p) => p.endsWith('.routes.ts'))
+    ) {
       await updateRoutesIndex(name, basePath);
     }
 
@@ -1116,38 +1209,52 @@ async function generate(): Promise<void> {
 
     if (moduleTypes.includes('prismaModel')) {
       console.log(chalk.yellow('1. Verify Prisma Schema:'));
-      console.log(`   Check ${chalk.cyan('prisma/schema.prisma')} for the new ${chalk.bold(Name)} model.`);
+      console.log(
+        `   Check ${chalk.cyan('prisma/schema.prisma')} for the new ${chalk.bold(Name)} model.`,
+      );
       console.log(chalk.yellow('2. Update Prisma client:'));
       console.log(`   ${chalk.cyan('npx prisma generate')}`);
       console.log(chalk.yellow('3. Create & Apply Database Migration:'));
-      console.log(`   ${chalk.cyan(`npx prisma migrate dev --name add_${name}`)}`);
+      console.log(
+        `   ${chalk.cyan(`npx prisma migrate dev --name add_${name}`)}`,
+      );
     }
 
     const stepStart = moduleTypes.includes('prismaModel') ? 4 : 1;
     console.log(chalk.yellow(`${stepStart}. Implement Service Logic:`));
-    console.log(`   Edit ${chalk.cyan(`src/services/${name}.service.ts`)} to add database interactions.`);
+    console.log(
+      `   Edit ${chalk.cyan(`src/services/${name}.service.ts`)} to add database interactions.`,
+    );
     console.log(chalk.yellow(`${stepStart + 1}. Implement Controller Logic:`));
-    console.log(`   Edit ${chalk.cyan(`src/controllers/${name}.controller.ts`)} (validation, use service).`);
-     if (moduleTypes.includes('test.ts')) {
-       console.log(chalk.yellow(`${stepStart + 2}. Write Tests:`));
-       console.log(`   Edit ${chalk.cyan(`src/tests/${name}.test.ts`)} and run ${chalk.cyan('npm run test')}.`);
-     }
-    console.log(chalk.yellow(`${stepStart + (moduleTypes.includes('test.ts') ? 3 : 2)}. Start your development server:`));
+    console.log(
+      `   Edit ${chalk.cyan(`src/controllers/${name}.controller.ts`)} (validation, use service).`,
+    );
+    if (moduleTypes.includes('test.ts')) {
+      console.log(chalk.yellow(`${stepStart + 2}. Write Tests:`));
+      console.log(
+        `   Edit ${chalk.cyan(`src/tests/${name}.test.ts`)} and run ${chalk.cyan('npm run test')}.`,
+      );
+    }
+    console.log(
+      chalk.yellow(
+        `${stepStart + (moduleTypes.includes('test.ts') ? 3 : 2)}. Start your development server:`,
+      ),
+    );
     console.log(`   ${chalk.cyan('npm run dev')}`);
 
     console.log(chalk.yellow(`\nTest your new endpoints (example):`));
     console.log(`   ${chalk.cyan(`GET ${basePath}/${namePlural}`)}`);
     console.log(`   ${chalk.cyan(`POST ${basePath}/${namePlural}`)}`);
-
   } catch (err: any) {
     // Handle known errors like user interruption
     if (err.message.includes('User force closed the prompt')) {
-         console.log(chalk.red('\n✖ Operation cancelled by user.'));
+      console.log(chalk.red('\n✖ Operation cancelled by user.'));
     } else {
-        console.error(chalk.red(`\n❌ Error during generation: ${err.message}`));
-        if (err.stack && process.env.DEBUG) { // Show stack only in debug mode
-            console.error(chalk.gray(err.stack));
-        }
+      console.error(chalk.red(`\n❌ Error during generation: ${err.message}`));
+      if (err.stack && process.env.DEBUG) {
+        // Show stack only in debug mode
+        console.error(chalk.gray(err.stack));
+      }
     }
     process.exit(1);
   }
@@ -1159,11 +1266,19 @@ async function ensureTemplatesDirectory(): Promise<void> {
     await fs.access(templatesDir);
   } catch {
     try {
-       await fs.mkdir(templatesDir, { recursive: true });
-       console.log(chalk.blue(`Created templates directory at ${templatesDir}`));
-       console.log(chalk.yellow('You can add custom *.ts.template files here to override defaults.'));
+      await fs.mkdir(templatesDir, { recursive: true });
+      console.log(chalk.blue(`Created templates directory at ${templatesDir}`));
+      console.log(
+        chalk.yellow(
+          'You can add custom *.ts.template files here to override defaults.',
+        ),
+      );
     } catch (mkdirErr: any) {
-        console.warn(chalk.yellow(`Could not create templates directory: ${mkdirErr.message}`));
+      console.warn(
+        chalk.yellow(
+          `Could not create templates directory: ${mkdirErr.message}`,
+        ),
+      );
     }
   }
 }

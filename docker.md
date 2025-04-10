@@ -4,11 +4,11 @@ This project includes a multi-stage `Dockerfile` located at the project root. It
 
 **Key Features of the Dockerfile:**
 
-* **Multi-stage Build:** Creates intermediate stages for dependency installation and building, resulting in a smaller final production image.
-* **Optimized Caching:** Layers are structured to maximize Docker build cache usage.
-* **Prisma Integration:** Correctly handles Prisma Client generation (`prisma generate`) during the build.
-* **Security:** Runs the application as a non-root user (`nodejs`) and removes development dependencies.
-* **Cloud Run Ready:** Exposes the standard port (`8080`), includes a `HEALTHCHECK` instruction compatible with Cloud Run probes, and uses `dumb-init` for proper signal handling and graceful shutdown.
+- **Multi-stage Build:** Creates intermediate stages for dependency installation and building, resulting in a smaller final production image.
+- **Optimized Caching:** Layers are structured to maximize Docker build cache usage.
+- **Prisma Integration:** Correctly handles Prisma Client generation (`prisma generate`) during the build.
+- **Security:** Runs the application as a non-root user (`nodejs`) and removes development dependencies.
+- **Cloud Run Ready:** Exposes the standard port (`8080`), includes a `HEALTHCHECK` instruction compatible with Cloud Run probes, and uses `dumb-init` for proper signal handling and graceful shutdown.
 
 A `.dockerignore` file is also included to ensure unnecessary files (like `.git`, `node_modules`, `.env`, logs) are excluded from the build context sent to the Docker daemon, which speeds up builds and enhances security.
 
@@ -23,3 +23,4 @@ To build the Docker image, run the following command from the project root. Repl
 
 # Or using the direct Docker command:
 docker build -t your-image-name:tag .
+```

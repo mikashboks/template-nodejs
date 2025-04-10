@@ -12,7 +12,8 @@ export default defineConfig({
       reporter: ['text', 'json', 'html', 'lcov'], // Output formats for coverage reports
       reportsDirectory: './coverage', // Directory where reports are saved
       include: ['src/**/*.{ts,js}'], // Files to include in coverage analysis
-      exclude: [ // Files/patterns to exclude from coverage
+      exclude: [
+        // Files/patterns to exclude from coverage
         'src/index.ts',
         'src/utils/logger.ts', // Often exclude logger setup
         '**/*.d.ts',

@@ -1,34 +1,27 @@
 // src/app.ts
-import express, {
-  type Express,
-  type Request,
-  type Response,
-  type NextFunction,
-} from 'express';
-import helmet from 'helmet';
-import cors from 'cors';
-import compression from 'compression';
-import { rateLimit } from 'express-rate-limit';
-import { pinoHttp } from 'pino-http';
 import { PrismaClient } from '@prisma/client';
+import compression from 'compression';
+import cors from 'cors';
+import express, { type Express, type Request, type Response } from 'express';
+import { rateLimit } from 'express-rate-limit';
+import helmet from 'helmet';
 
-// Import middleware
+import { config } from './config/index.js';
+import { logger, httpLogger } from './libs/logger.js';
 import { errorHandlerMiddleware } from './middlewares/error-handler.middleware.js';
 import { timeoutMiddleware } from './middlewares/timeout.middleware.js';
-
-// Import config and logger
-import { getConfig } from './config/index.js';
-import { logger, httpLogger } from './libs/logger.js';
-import { tracingMiddleware } from './middlewares/tracing.middleware.ts';
+import { tracingMiddleware } from './middlewares/tracing.middleware.js';
 
 // Create shared Prisma client (singleton pattern for Cloud Run)
-export const prisma = new PrismaClient({
-  // Log based on environment in config
-  log:
-    process.env['NODE_ENV'] === 'development'
-      ? ['query', 'info', 'warn', 'error']
-      : ['error'],
-});
+export const prisma = config.database.url
+  ? new PrismaClient({
+      // Log based on environment in config
+      log:
+        process.env['NODE_ENV'] === 'development'
+          ? ['query', 'info', 'warn', 'error']
+          : ['error'],
+    })
+  : null;
 
 // Create Express app
 const app: Express = express();
@@ -37,9 +30,6 @@ const app: Express = express();
  * Configures the Express application with middleware optimized for Cloud Run
  */
 export async function setupApp(): Promise<Express> {
-  // Ensure config is initialized
-  const appConfig = await getConfig();
-
   app.use(httpLogger); // HTTP logger for all requests
 
   // Request ID middleware (for tracing)
@@ -48,11 +38,11 @@ export async function setupApp(): Promise<Express> {
   // Request timeout middleware
   app.use(timeoutMiddleware());
 
-  if (appConfig.security.isExternal) {
+  if (config.security.isExternal) {
     // Basic security headers with Helmet
     app.use(
       helmet({
-        contentSecurityPolicy: appConfig.server.isProduction ? true : false, // Enable CSP in production
+        contentSecurityPolicy: config.server.isProduction ? true : false, // Enable CSP in production
         crossOriginEmbedderPolicy: false, // Allow embedding
       }),
     );
@@ -60,7 +50,7 @@ export async function setupApp(): Promise<Express> {
     // CORS configuration
     app.use(
       cors({
-        origin: appConfig.security.corsOrigin,
+        origin: config.security.corsOrigin,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
         maxAge: 86400, // 24 hours
@@ -77,11 +67,11 @@ export async function setupApp(): Promise<Express> {
     // Global rate limiter
     app.use(
       rateLimit({
-        windowMs: appConfig.security.rateLimit.windowMs,
-        max: appConfig.security.rateLimit.max,
+        windowMs: config.security.rateLimit.windowMs,
+        max: config.security.rateLimit.max,
         standardHeaders: true,
         legacyHeaders: false,
-        skip: (req) => appConfig.server.isDevelopment,
+        skip: (_req) => config.server.isDevelopment,
         message: { error: 'Too many requests', message: 'Rate limit exceeded' },
       }),
     );
@@ -125,7 +115,7 @@ export async function setupApp(): Promise<Express> {
   app.use('/', healthRoutes);
 
   // API routes
-  app.use(appConfig.server.apiPrefix, apiRoutes);
+  app.use(config.server.apiPrefix, apiRoutes);
 
   // 404 handler - must come after all routes
   app.use((req: Request, res: Response) => {

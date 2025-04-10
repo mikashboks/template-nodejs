@@ -1,72 +1,76 @@
-import { Keyv } from 'keyv';
 import EventEmitter from 'node:events';
+
 import KeyvRedis from '@keyv/redis';
-import { CacheableMemory } from 'cacheable';
 import { createCache, type Cache } from 'cache-manager'; // Import Store type if needed later
-import type { AppConfig } from '@/config/index.js';
+import { CacheableMemory } from 'cacheable';
+import { Keyv } from 'keyv';
 
 // Import config and logger
-import { config } from '../config/index.js';
 import { logger } from './logger.js';
+import { config } from '../config/index.js';
+
+import type { AppConfig } from '@/config/index.js';
 
 type Events = {
-    // Define your event types here if needed
+  // Define your event types here if needed
 };
 
 const noOpCache: Cache = {
-    async get<T>(): Promise<T | null> {
-        return null;
-    },
+  async get<T>(): Promise<T | null> {
+    return null;
+  },
 
-    async mget<T>(keys: string[]): Promise<Array<T | null>> {
-        return Array(keys.length).fill(null);
-    },
+  async mget<T>(keys: string[]): Promise<Array<T | null>> {
+    return Array(keys.length).fill(null);
+  },
 
-    async ttl(): Promise<number | null> {
-        return null;
-    },
+  async ttl(): Promise<number | null> {
+    return null;
+  },
 
-    async set<T>(_key: string, value: T): Promise<T> {
-        return value;
-    },
+  async set<T>(_key: string, value: T): Promise<T> {
+    return value;
+  },
 
-    async mset<T>(list: Array<{ key: string; value: T; ttl?: number }>): Promise<typeof list> {
-        return list;
-    },
+  async mset<T>(
+    list: Array<{ key: string; value: T; ttl?: number }>,
+  ): Promise<typeof list> {
+    return list;
+  },
 
-    async del(): Promise<boolean> {
-        return true;
-    },
+  async del(): Promise<boolean> {
+    return true;
+  },
 
-    async mdel(): Promise<boolean> {
-        return true;
-    },
+  async mdel(): Promise<boolean> {
+    return true;
+  },
 
-    async clear(): Promise<boolean> {
-        return true;
-    },
+  async clear(): Promise<boolean> {
+    return true;
+  },
 
-    on<E extends keyof Events>(): EventEmitter {
-        return this as unknown as EventEmitter;
-    },
+  on<_E extends keyof Events>(): EventEmitter {
+    return this as unknown as EventEmitter;
+  },
 
-    off<E extends keyof Events>(): EventEmitter {
-        return this as unknown as EventEmitter;
-    },
+  off<_E extends keyof Events>(): EventEmitter {
+    return this as unknown as EventEmitter;
+  },
 
-    async disconnect(): Promise<undefined> {
-        return undefined;
-    },
+  async disconnect(): Promise<undefined> {
+    return undefined;
+  },
 
-    cacheId(): string {
-        return 'no-op-cache';
-    },
+  cacheId(): string {
+    return 'no-op-cache';
+  },
 
-    stores: [],
+  stores: [],
 
-    async wrap<T>(_key: string, fnc: () => T | Promise<T>): Promise<T> {
-        return Promise.resolve().then(fnc);
-    }
+  async wrap<T>(_key: string, fnc: () => T | Promise<T>): Promise<T> {
+    return Promise.resolve().then(fnc);
+  },
 };
 
 // --- No-Op Cache Implementation ---
@@ -85,9 +89,9 @@ export function createProjectCache(config: AppConfig['cache']): Cache {
   // 2. Configure In-Memory Store (Always included if cache is enabled)
   const memoryStore = new Keyv({
     store: new CacheableMemory({
-        ttl: config.memoryTtlMs, // Use memoryTtlMs for CacheableMemory
-        lruSize: config.memoryLruSize, // Use memoryLruSize for CacheableMemory's maxSize
-      }),
+      ttl: config.memoryTtlMs, // Use memoryTtlMs for CacheableMemory
+      lruSize: config.memoryLruSize, // Use memoryLruSize for CacheableMemory's maxSize
+    }),
     namespace: config.namespace,
   });
   stores.push(memoryStore);
@@ -152,7 +156,7 @@ export function createProjectCache(config: AppConfig['cache']): Cache {
     // --- cache-manager specific options ---
     ttl: config.defaultTtlMs, // Default TTL for items (often primarily affects Redis tier)
     // refreshThreshold: config.refreshThresholdMs, // refreshThreshold needs specific store support
-    nonBlocking: config.nonBlocking,    
+    nonBlocking: config.nonBlocking,
   });
 
   logger.info(
@@ -162,5 +166,5 @@ export function createProjectCache(config: AppConfig['cache']): Cache {
 }
 
 // Create the cache instance using the loaded configuration
-export const cache: Cache = createProjectCache(config().cache);
+export const cache: Cache = createProjectCache(config.cache);
 export const NO_CACHE_ID = 'no-op-cache';

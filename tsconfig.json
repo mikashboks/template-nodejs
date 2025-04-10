@@ -20,15 +20,14 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
-    "noImplicitAny": true,               // Avoid accidental any
-    "strictNullChecks": true,            // Treat null and undefined as distinct
-    "strictFunctionTypes": true,         // Ensure safe function assignability
-    "strictBindCallApply": true,         // Safer usage of .bind, .call, .apply
-    "strictPropertyInitialization": true,// Catch uninitialized class props
-    "noImplicitThis": true,              // Prevent accidental any in this
-    "useUnknownInCatchVariables": true,  // Encourages safer error handling
-    "alwaysStrict": true,                 // Adds 'use strict' at the top of files
-
+    "noImplicitAny": true, // Avoid accidental any
+    "strictNullChecks": true, // Treat null and undefined as distinct
+    "strictFunctionTypes": true, // Ensure safe function assignability
+    "strictBindCallApply": true, // Safer usage of .bind, .call, .apply
+    "strictPropertyInitialization": true, // Catch uninitialized class props
+    "noImplicitThis": true, // Prevent accidental any in this
+    "useUnknownInCatchVariables": true, // Encourages safer error handling
+    "alwaysStrict": true, // Adds 'use strict' at the top of files
 
     /* Module Resolution Options */
     "moduleResolution": "NodeNext",
@@ -47,13 +46,8 @@
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"
