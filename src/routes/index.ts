@@ -4,7 +4,6 @@ import { Router, type Request, type Response } from 'express';
 // Import all route modules
 // This will be populated automatically when using the generate script
 // The commented imports below are examples - your actual imports will depend on your modules
-// import productRoutes from './product.routes.js';
 // import userRoutes from './user.routes.js';
 // import orderRoutes from './order.routes.js';
 
@@ -17,7 +16,6 @@ router.get('/', (req: Request, res: Response) => {
     version: process.env['npm_package_version'] || '1.0.0',
     endpoints: [
       // Add your endpoints here - this will be populated by your actual modules
-      // { path: '/products', description: 'Product management' },
       // { path: '/users', description: 'User management' },
       // { path: '/orders', description: 'Order management' },
     ],
@@ -27,7 +25,6 @@ router.get('/', (req: Request, res: Response) => {
 
 // Mount all route modules
 // This section will be updated automatically by the generate script
-// router.use('/products', productRoutes);
 // router.use('/users', userRoutes);
 // router.use('/orders', orderRoutes);
 

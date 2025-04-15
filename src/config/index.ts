@@ -3,10 +3,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 
 import { config as dotenvConfig } from 'dotenv';
-import gcpMetadata from 'gcp-metadata';
 import { z } from 'zod';
-
-import { logger } from '../libs/logger.js'; // Assuming logger is available early
 
 // Default TTL for cached results (5 minutes)
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000;

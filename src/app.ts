@@ -5,12 +5,14 @@ import cors from 'cors';
 import express, { type Express, type Request, type Response } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 
 import { config } from './config/index.js';
 import { logger, httpLogger } from './libs/logger.js';
 import { errorHandlerMiddleware } from './middlewares/error-handler.middleware.js';
 import { timeoutMiddleware } from './middlewares/timeout.middleware.js';
 import { tracingMiddleware } from './middlewares/tracing.middleware.js';
+import swaggerSpec from './routes/swagger.ts';
 
 // Create shared Prisma client (singleton pattern for Cloud Run)
 export const prisma = config.database.url
@@ -76,6 +78,16 @@ export async function setupApp(): Promise<Express> {
       }),
     );
   }
+
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      explorer: true,
+      customCssUrl:
+        'https://cdn.jsdelivr.net/npm/swagger-ui-themes@3.0.1/themes/3.x/theme-material.css',
+    }),
+  );
 
   // Set up response timing metrics
   app.use((req, res, next) => {
