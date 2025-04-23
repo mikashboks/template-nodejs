@@ -1,10 +1,10 @@
 import { ZodSchema } from 'zod';
 import { z, ZodError } from 'zod';
 
-export async function validateWithZod<S extends any, D>(
+export function validateWithZod<S extends any, D>(
   schema: ZodSchema<S>,
   data: D,
-): Promise<ValidationResult> {
+): ValidationResult {
   const result = schema.safeParse(data);
   if (result.success) {
     return { valid: true, data: result.data };

@@ -234,7 +234,7 @@ export interface AppConfig {
     refreshThresholdMs: number;
     nonBlocking: boolean;
   };
-  custom: Record<string, unknown> | undefined | null;
+  app: Record<string, unknown> | undefined | null;
 }
 
 // --- getConfig Function ---
@@ -329,7 +329,7 @@ export function getConfig(): AppConfig {
         refreshThresholdMs: env.CACHE_REFRESH_THRESHOLD_MS,
         nonBlocking: env.CACHE_NON_BLOCKING,
       },
-      custom: {}, // Keep custom section
+      app: {}, // Keep custom section
     };
 
     // Log cache config status

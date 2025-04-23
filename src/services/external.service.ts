@@ -6,9 +6,8 @@ import {
   AbstractService,
   TraceContext,
   ServiceOptions,
+  ServiceInitOptions,
 } from './abstract.service.js';
-
-const GoogleAuth = require('google-auth-library');
 
 /**
  * Options for configuring the circuit breaker pattern.
@@ -714,7 +713,7 @@ export class GCPRunExternalService extends ExternalService {
   protected readonly region: string;
   protected readonly gcpAudience: string;
   protected readonly authEnabled: boolean;
-  private readonly googleAuth: any; // Cache GoogleAuth instance
+  private googleAuth: any; // Cache GoogleAuth instance
 
   /**
    * Creates a new instance of the GCP Cloud Run service client.
@@ -797,12 +796,6 @@ export class GCPRunExternalService extends ExternalService {
     this.region = region;
     this.authEnabled = useAuth;
     this.gcpAudience = audience;
-    if (this.authEnabled) {
-      this.googleAuth = new GoogleAuth({
-        // Scopes typically not needed for ID tokens, but could be added here if required.
-      });
-    }
-
     this.logger.info(
       {
         service: this.serviceName,
@@ -814,6 +807,15 @@ export class GCPRunExternalService extends ExternalService {
       },
       `GCP Cloud Run service client '${this.serviceName}' initialized`,
     );
+  }
+
+  override async init(options?: ServiceInitOptions): Promise<void> {
+    if (this.authEnabled) {
+      const { GoogleAuth } = await import('google-auth-library');
+      this.googleAuth = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      });
+    }
   }
 
   /**

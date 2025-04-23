@@ -1,15 +1,13 @@
 import { type SwaggerDefinition } from 'swagger-jsdoc';
 import swaggerJSDoc from 'swagger-jsdoc';
 
-import { config } from '@/config/index';
-
-import { version } from '../../package.json' assert { type: 'json' };
+import { config } from '@/config/index.js';
 
 const swaggerDefinition: SwaggerDefinition = {
   openapi: '3.0.0',
   info: {
     title: `${config.server.applicationName} Service API`,
-    version,
+    version: '1.0.0', // TODO: Use dynamic import for package.json
     description: 'MiKashBoks API',
     contact: {
       name: 'MiKashBoks',

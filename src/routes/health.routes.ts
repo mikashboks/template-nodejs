@@ -24,20 +24,22 @@ router.get(
     let isHealthy = true;
 
     // Check database connection
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      status.checks['database'] = {
-        status: 'ok',
-        responseTime: `${Date.now() - startTime}ms`,
-      };
-    } catch (error) {
-      isHealthy = false;
-      status.checks['database'] = {
-        status: 'error',
-        message: 'Database connection failed',
-        responseTime: `${Date.now() - startTime}ms`,
-      };
-      logger.error({ error }, 'Health check database error');
+    if (config.database.url) {
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        status.checks['database'] = {
+          status: 'ok',
+          responseTime: `${Date.now() - startTime}ms`,
+        };
+      } catch (error) {
+        isHealthy = false;
+        status.checks['database'] = {
+          status: 'error',
+          message: 'Database connection failed',
+          responseTime: `${Date.now() - startTime}ms`,
+        };
+        logger.error({ error }, 'Health check database error');
+      }
     }
 
     // System information - useful for monitoring

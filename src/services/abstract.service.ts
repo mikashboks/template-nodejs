@@ -58,7 +58,7 @@ export interface IService {
   /**
    * Initialize the service with optional context
    */
-  init(options?: ServiceInitOptions): void;
+  init(options?: ServiceInitOptions): Promise<void>;
 
   /**
    * Cleanup resources used by the service
@@ -90,7 +90,7 @@ export abstract class AbstractService implements IService {
   /**
    * Initialize the service with optional context
    */
-  public init(options?: ServiceInitOptions): void {
+  public async init(options?: ServiceInitOptions): Promise<void> {
     if (options?.logger) {
       this.logger = options.logger;
     }
