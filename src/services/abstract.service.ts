@@ -2,6 +2,10 @@ import { Logger } from 'pino';
 
 import { AbortError } from '@/errors/base.js';
 import { createChildLogger } from '@/libs/logger.js';
+import { redisClient } from '@/libs/redis.js';
+// @ts-expect-error: Redlock types are not resolved correctly due to package exports
+import Redlock from 'redlock';
+import { config } from '@/config/index.ts';
 
 /**
  * Trace context for distributed tracing
@@ -72,6 +76,18 @@ export interface IService {
     callback: (service: this) => Promise<T>,
     options?: ServiceOptions,
   ): Promise<T>;
+
+  /**
+   * Run a function with a distributed lock (if Redis is enabled), or fallback to in-memory lock (single process).
+   * @param key The unique key for the lock
+   * @param callback The function to run while holding the lock
+   * @param ttlMs Lock time-to-live in milliseconds (default: 10_000)
+   */
+  withLock<T>(
+    key: string,
+    callback: () => Promise<T>,
+    ttlMs?: number,
+  ): Promise<T>;
 }
 
 /**
@@ -81,6 +97,9 @@ export abstract class AbstractService implements IService {
   protected logger: Logger;
   protected serviceName: string;
   protected initialized: boolean = false;
+
+  // In-memory lock fallback for withLock
+  private inMemoryLocks = new Map<string, Promise<void> | null>();
 
   constructor(serviceName: string, logger?: Logger) {
     this.serviceName = serviceName;
@@ -118,6 +137,77 @@ export abstract class AbstractService implements IService {
     callback: (service: this) => Promise<T>,
     options?: ServiceOptions,
   ): Promise<T>;
+
+  /**
+   * Run a function with a distributed lock (if Redis is enabled), or fallback to in-memory lock (single process).
+   * @param key The unique key for the lock
+   * @param callback The function to run while holding the lock
+   * @param ttlMs Lock time-to-live in milliseconds (default: 10_000)
+   */
+  public async withLock<T>(
+    key: string,
+    callback: () => Promise<T>,
+    ttlMs?: number,
+  ): Promise<T> {
+    const lockKey = `${config.cache.namespace}:lock:${key}`;
+    if (redisClient) {
+      // Use Redlock for distributed locking
+      const redlock = new Redlock([redisClient], {
+        retryCount: 10,
+        retryDelay: 200,
+        retryJitter: 100,
+      });
+      let lock;
+      try {
+        lock = await redlock.acquire([lockKey], ttlMs);
+        this.logger.debug(
+          { lockKey, ttlMs },
+          `Acquired distributed lock: ${lockKey}`,
+        );
+        const result = await callback();
+        await lock.release();
+        this.logger.debug({ lockKey }, `Released distributed lock: ${lockKey}`);
+        return result;
+      } catch (err: any) {
+        if (lock) {
+          try {
+            await lock.release();
+          } catch (releaseErr) {
+            this.logger.warn(
+              { lockKey, releaseErr },
+              `Failed to release lock: ${lockKey}`,
+            );
+          }
+        }
+        this.logger.error(
+          { lockKey, err },
+          `Error in withLock for key: ${lockKey}`,
+        );
+        throw err;
+      }
+    } else {
+      // In-memory lock fallback (single process only)
+      let currentLock = this.inMemoryLocks.get(lockKey);
+      // Wait for any existing lock to finish
+      while (currentLock) {
+        await currentLock;
+        currentLock = this.inMemoryLocks.get(lockKey);
+      }
+      // Set a new lock (promise that resolves when callback completes)
+      let resolveLock: () => void = () => {};
+      const lockPromise = new Promise<void>((resolve) => {
+        resolveLock = resolve;
+      });
+      this.inMemoryLocks.set(lockKey, lockPromise);
+      try {
+        const result = await callback();
+        return result;
+      } finally {
+        this.inMemoryLocks.delete(lockKey);
+        resolveLock();
+      }
+    }
+  }
 
   /**
    * Create a child logger with trace context

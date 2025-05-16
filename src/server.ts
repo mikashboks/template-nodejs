@@ -4,6 +4,7 @@ import { setupApp, prisma } from '@/app.js';
 import { config } from '@/config/index.js';
 import { logger } from '@/libs/logger.js';
 import { setupGracefulShutdown } from '@/middlewares/graceful-shutdown.middleware.js';
+import { redisConnectPromise } from './libs/redis.ts';
 
 /**
  * Main server startup function
@@ -13,6 +14,10 @@ async function startServer() {
   try {
     // Set up app with all middleware and routes
     const app = await setupApp();
+
+    if (redisConnectPromise) {
+      await redisConnectPromise;
+    }
 
     // Create HTTP server
     // eslint-disable-next-line @typescript-eslint/no-misused-promises

@@ -7,6 +7,7 @@ import { Keyv } from 'keyv';
 
 // Import config and logger
 import { logger } from './logger.js';
+import { redisClient } from './redis.ts';
 import { config } from '../config/index.js';
 
 import type { AppConfig } from '@/config/index.js';

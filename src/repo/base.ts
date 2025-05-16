@@ -98,7 +98,7 @@ export interface QueryOptions<TOrderBy, TSelect, TInclude> {
 }
 
 export interface IBaseModel {
-  id: number;
+  id: string;
   createdAt: Date;
   updatedAt: Date;
   deleted?: boolean;

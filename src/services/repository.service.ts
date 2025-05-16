@@ -62,7 +62,7 @@ export abstract class RepositoryService<
   /**
    * Creates a new repository service
    *
-   * @param serviceName - Name of the service for logging and metrics
+   * @param serviceName - Nam e of the service for logging and metrics
    * @param repository - Repository instance to use for data operations
    * @param logger - Optional logger instance
    */
